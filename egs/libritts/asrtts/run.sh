@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 # Copyright 2019 Okayama University (Katsuki Inoue)
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
@@ -8,10 +8,10 @@
 
 # general configuration
 backend=pytorch
-stage=-1
-stop_stage=100
+stage=2
+stop_stage=2
 ngpu=1       # number of gpu in training
-nj=64        # numebr of parallel jobs
+nj=1 #64        # numebr of parallel jobs
 dumpdir=dump # directory to dump full features
 verbose=0    # verbose option (if set > 1, get more log)
 seed=1       # random seed number
@@ -74,28 +74,37 @@ set -e
 set -u
 set -o pipefail
 
+all_set="dev-clean test-clean train-clean-100 train-clean-360" #"dev_clean test_clean dev_other test_other train_clean_100 train_clean_360 train_other_500"
+download_set= #"dev-clean test-clean train-clean-100 train-clean-360"
+prep_set=#"dev-clean test-clean train-clean-100 train-clean-360"
+extract_set="sample"
 train_set=train_clean_460
 dev_set=dev_clean
 eval_set=test_clean
 
-#if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
-#    echo "stage -1: Data Download"
-#    mkdir -p ${datadir}
-#    for part in dev-clean test-clean train-clean-100 train-clean-360; do
-#        local/download_and_untar.sh ${datadir} ${data_url} ${part}
-#    done
-#fi
+##########################################################################################NO CHECKED
 
+if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
+    echo "stage -1: Data Download"
+    mkdir -p ${datadir}
+    for part in ${download_set}; do
+        local/download_and_untar.sh ${datadir} ${data_url} ${part}
+    done
+fi
+
+
+##########################################################################################NO CHECKED
 if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     ### Task dependent. You have to make data the following preparation part by yourself.
     ### But you can utilize Kaldi recipes in most cases
     echo "stage 0: Data preparation"
-    for part in dev-clean test-clean train-clean-100 train-clean-360; do
+    for part in ${prep_set}; do
         # use underscore-separated names in data directories.
         local/data_prep.sh ${datadir}/LibriTTS/${part} data/${part//-/_}
     done
 fi
 
+##########################################################################################NO CHECKED
 feat_tr_dir=${dumpdir}/${train_set}; mkdir -p ${feat_tr_dir}
 feat_dt_dir=${dumpdir}/${dev_set}; mkdir -p ${feat_dt_dir}
 feat_ev_dir=${dumpdir}/${eval_set}; mkdir -p ${feat_ev_dir}
@@ -103,62 +112,114 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     ### Task dependent. You have to design training and dev name by yourself.
     ### But you can utilize Kaldi recipes in most cases
     echo "stage 1: Feature Generation"
+    
+    echo "1.1: ASR Feature"
+    fbankdir=fbank_asr    
+    for x in ${extract_set}; do
+        steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj ${nj} \
+          --write_utt2num_frames true \
+          data/${x}  \
+          exp/make_fbank_asr/${x} \
+          ${fbankdir}
+        utils/fix_data_dir.sh data/${x}
+    done    
 
-    fbankdir=fbank
-    for x in dev_clean test_clean train_clean_100 train_clean_360; do
-        make_fbank.sh --cmd "${train_cmd}" --nj ${nj} \
-            --fs ${fs} \
-            --fmax "${fmax}" \
-            --fmin "${fmin}" \
-            --n_fft ${n_fft} \
-            --n_shift ${n_shift} \
-            --win_length "${win_length}" \
-            --n_mels ${n_mels} \
-            data/${x} \
-            exp/make_fbank/${x} \
-            ${fbankdir}
-    done
+    echo "1.2: TTS Feature"
+    #fbankdir=fbank_tts
+    #for x in ${extract_set}; do
+    #    make_fbank.sh --cmd "${train_cmd}" --nj ${nj} \
+    #        --fs ${fs} \
+    #        --fmax "${fmax}" \
+    #        --fmin "${fmin}" \
+    #        --n_fft ${n_fft} \
+    #        --n_shift ${n_shift} \
+    #        --win_length "${win_length}" \
+    #        --n_mels ${n_mels} \
+    #        data/${x} \
+    #        exp/make_fbank_tts/${x} \
+    #        ${fbankdir}
+    #done
 
-    utils/combine_data.sh data/${train_set}_org data/train_clean_100 data/train_clean_360
-    utils/combine_data.sh data/${dev_set}_org data/dev_clean
+    #utils/combine_data.sh data/${train_set}_org data/train_clean_100 data/train_clean_360
+    #utils/combine_data.sh data/${dev_set}_org data/dev_clean
 
     # remove utt having more than 3000 frames
     # remove utt having more than 400 characters
-    remove_longshortdata.sh --maxframes 3000 --maxchars 400 data/${train_set}_org data/${train_set}
-    remove_longshortdata.sh --maxframes 3000 --maxchars 400 data/${dev_set}_org data/${dev_set}
+    #remove_longshortdata.sh --maxframes 3000 --maxchars 400 data/${train_set}_org data/${train_set}
+    #remove_longshortdata.sh --maxframes 3000 --maxchars 400 data/${dev_set}_org data/${dev_set}
 
     # compute statistics for global mean-variance normalization
-    compute-cmvn-stats scp:data/${train_set}/feats.scp data/${train_set}/cmvn.ark
+    #compute-cmvn-stats scp:data/${train_set}/feats.scp data/${train_set}/cmvn.ark
 
     # dump features for training
-    dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta false \
-        data/${train_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/train ${feat_tr_dir}
-    dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta false \
-        data/${dev_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
-    dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta false \
-        data/${eval_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/eval ${feat_ev_dir}
+    #dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta false \
+    #    data/${train_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/train ${feat_tr_dir}
+    #dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta false \
+    #    data/${dev_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
+    #dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta false \
+    #    data/${eval_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/eval ${feat_ev_dir}
+    
+    mkdir -p dump/sample
+    dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
+        data/${extract_set}/feats.scp data/${extract_set}/cmvn.ark exp/dump_feats/sample \
+        dump/sample    
+    
+    #dump.sh --cmd "$train_cmd" --nj 80 --do_delta ${do_delta} \
+    #    data/${train_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/train ${feat_tr_dir}
+    
+    #feat_recog_dir=${decode_dir}/dump; mkdir -p ${feat_recog_dir}
+    #dump.sh --cmd "$train_cmd" --nj 1 --do_delta ${do_delta} \
+    #    ${decode_dir}/data/feats.scp ${cmvn} ${decode_dir}/log \
+    #    ${feat_recog_dir}
 fi
 
+##########################################################################################NO CHECKED
 dict=data/lang_1char/${train_set}_units.txt
 echo "dictionary: ${dict}"
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     ### Task dependent. You have to check non-linguistic symbols used in the corpus.
     echo "stage 2: Dictionary and Json Data Preparation"
-    mkdir -p data/lang_1char/
-    echo "<unk> 1" > ${dict} # <unk> must be 1, 0 will be used for "blank" in CTC
-    text2token.py -s 1 -n 1 data/${train_set}/text | cut -f 2- -d" " | tr " " "\n" \
-    | sort | uniq | grep -v -e '^\s*$' | awk '{print $0 " " NR+1}' >> ${dict}
-    wc -l ${dict}
+    #mkdir -p data/lang_1char/
+    #echo "<unk> 1" > ${dict} # <unk> must be 1, 0 will be used for "blank" in CTC
+    #text2token.py -s 1 -n 1 data/${train_set}/text | cut -f 2- -d" " | tr " " "\n" \
+    #| sort | uniq | grep -v -e '^\s*$' | awk '{print $0 " " NR+1}' >> ${dict}
+    #wc -l ${dict}
+    
+    #echo "stage 2: Dictionary and Json Data Preparation"
+    #mkdir -p data/lang_char/
+    #echo "<unk> 1" > ${dict} # <unk> must be 1, 0 will be used for "blank" in CTC
+    #cut -f 2- -d" " data/${train_set}/text > data/lang_char/input.txt
+    #spm_train --input=data/lang_char/input.txt --vocab_size=${nbpe} --model_type=${bpemode} --model_prefix=${bpemodel} --input_sentence_size=100000000
+    #spm_encode --model=${bpemodel}.model --output_format=piece < data/lang_char/input.txt | tr ' ' '\n' | sort | uniq | awk '{print $0 " " NR+1}' >> ${dict}
+    #wc -l ${dict}
+    # bpemode (unigram or bpe)
+
+    nbpe=5000
+    bpemode=unigram
+    dict=data/lang_char/sample_${bpemode}${nbpe}_units.txt
+    echo "<unk> 1" > ${dict}
+    feat_recog_dir=${decode_dir}/dump
+    data2json.sh --feat ${feat_recog_dir}/feats.scp \
+        ${decode_dir}/data ${dict} > ${feat_recog_dir}/data.json
+    rm -f ${dict}
+
+    
+    echo "<unk> 1" > ${dict}
+    feat_recog_dir=${decode_dir}/dump
+    data2json.sh --feat ${feat_recog_dir}/feats.scp \
+        ${decode_dir}/data ${dict} > ${feat_recog_dir}/data.json
+    rm -f ${dict}
 
     # make json labels
-    data2json.sh --feat ${feat_tr_dir}/feats.scp \
-         data/${train_set} ${dict} > ${feat_tr_dir}/data.json
-    data2json.sh --feat ${feat_dt_dir}/feats.scp \
-         data/${dev_set} ${dict} > ${feat_dt_dir}/data.json
-    data2json.sh --feat ${feat_ev_dir}/feats.scp \
-         data/${eval_set} ${dict} > ${feat_ev_dir}/data.json
+    #data2json.sh --feat ${feat_tr_dir}/feats.scp \
+    #     data/${train_set} ${dict} > ${feat_tr_dir}/data.json
+    #data2json.sh --feat ${feat_dt_dir}/feats.scp \
+    #     data/${dev_set} ${dict} > ${feat_dt_dir}/data.json
+    #data2json.sh --feat ${feat_ev_dir}/feats.scp \
+    #     data/${eval_set} ${dict} > ${feat_ev_dir}/data.json
 fi
 
+##########################################################################################NO CHECKED
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
     echo "stage 3: x-vector extraction"
     # Make MFCCs and compute the energy-based VAD for each dataset
@@ -199,6 +260,7 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
     done
 fi
 
+##########################################################################################NO CHECKED
 if [ -z ${tag} ]; then
     expname=${train_set}_${backend}_$(basename ${train_config%.*})
 else
@@ -224,6 +286,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
            --config ${train_config}
 fi
 
+##########################################################################################NO CHECKED
 if [ ${n_average} -gt 0 ]; then
     model=model.last${n_average}.avg.best
 fi
@@ -263,6 +326,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     [ ${i} -gt 0 ] && echo "$0: ${i} background jobs are failed." && false
 fi
 
+##########################################################################################NO CHECKED
 if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
     echo "stage 6: Synthesis"
     pids=() # initialize pids
