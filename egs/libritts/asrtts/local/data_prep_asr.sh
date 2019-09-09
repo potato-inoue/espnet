@@ -55,7 +55,7 @@ for reader_dir in $(find -L $src -mindepth 1 -maxdepth 1 -type d | sed -e "s/$/_
        echo "$id ffmpeg -loglevel warning -i $wav_file -ac 1 -ar 16000 -acodec pcm_s16le -f wav -y - |" >>$wav_scp
 
        txt=$(cat $(echo $wav_file | sed -e "s/\.wav$/.normalized.txt/"))
-       echo "$id $txt" >>$trans
+       echo "$id ${txt^^}" >> $trans
 
        # NOTE: For now we are using per-chapter utt2spk. That is each chapter is considered
        #       to be a different speaker. This is done for simplicity and because we want
