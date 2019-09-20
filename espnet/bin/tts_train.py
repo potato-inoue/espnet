@@ -49,6 +49,8 @@ def get_parser():
                         help='Random seed')
     parser.add_argument('--resume', '-r', default='', type=str, nargs='?',
                         help='Resume the training from snapshot')
+    parser.add_argument('--model', default='', type=str, nargs='?',
+                        help='Model file parameters to read')
     parser.add_argument('--minibatches', '-N', type=int, default='-1',
                         help='Process only N minibatches (for debug)')
     parser.add_argument('--verbose', '-V', default=0, type=int,

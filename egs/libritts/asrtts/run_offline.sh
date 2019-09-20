@@ -8,12 +8,12 @@
 
 # general configuration
 backend=pytorch
-stage=9
-stop_stage=9
+stage=10
+stop_stage=11
 ngpu=1        # number of gpu in training
-nj=1 #16     # numebr of parallel jobs
+nj=32 #16     # numebr of parallel jobs
 dumpdir=dump  # directory to dump full features
-verbose=0     # verbose option (if set > 1, get more log)
+verbose=1     # verbose option (if set > 1, get more log)
 seed=1        # random seed number
 tts_resume="" # the snapshot path to resume (if set empty, no effect)
 
@@ -30,7 +30,7 @@ win_length="" # window length
 do_delta=false
 
 # tts config files
-tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.rev1.yaml"
+tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.rev8.yaml"
 tts_decode_config="conf/tts_decode.fine-tuning.yaml"
 asr_decode_config="conf/asr_decode.fine-tuning.yaml"
 
@@ -70,10 +70,11 @@ prep_set="dev-clean" #"test-clean test-other"
 extract_set="test-clean dev-clean"  #"test-other" #"dev-clean dev-other"
 
 # Cut function
-tts_fbank=false # First half of stage 4 
-tts_dump=true   # Last half of stage 4 
+tts_fbank=true # First half of stage 4 
+tts_dump=false   # Last half of stage 4 
+select_speaker=false
 
-tts_data_set="sample_rev2"
+tts_data_set="sample_rev2" #"all"
 train_set=${tts_data_set}_train
 dev_set=${tts_data_set}_dev
 eval_set=${tts_data_set}_eval
@@ -258,6 +259,12 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
             #remove utt having less than 1 charactors (= no recognized text)
             remove_longshortdata.sh --maxframes 3000 --maxchars 400 --minchars 1 data/tts/${x}_org data/tts/${x}
         done
+
+        for x in ${extract_set//-/_}; do
+            dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
+              data/tts/${x}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${x} \
+              ${dumpdir}/tts/${x}
+        done
     fi
 
     if [ ${tts_dump} == 'true' ]; then
@@ -296,13 +303,21 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     mkdir -p data/tts/lang_1char
     cp ${tts_dict} data/tts/lang_1char/${tts_dict##*/}
 
-    # make json labels
-    data2json.sh --feat ${tts_feat_tr_dir}/feats.scp \
-         data/tts/${train_set} ${tts_dict} > ${tts_feat_tr_dir}/data.json
-    data2json.sh --feat ${tts_feat_dt_dir}/feats.scp \
-         data/tts/${dev_set} ${tts_dict} > ${tts_feat_dt_dir}/data.json
-    data2json.sh --feat ${tts_feat_ev_dir}/feats.scp \
-         data/tts/${eval_set} ${tts_dict} > ${tts_feat_ev_dir}/data.json
+    if [ ${select_speaker} == "true" ]; then
+        # make json labels
+        data2json.sh --feat ${tts_feat_tr_dir}/feats.scp \
+            data/tts/${train_set} ${tts_dict} > ${tts_feat_tr_dir}/data.json
+        data2json.sh --feat ${tts_feat_dt_dir}/feats.scp \
+            data/tts/${dev_set} ${tts_dict} > ${tts_feat_dt_dir}/data.json
+        data2json.sh --feat ${tts_feat_ev_dir}/feats.scp \
+            data/tts/${eval_set} ${tts_dict} > ${tts_feat_ev_dir}/data.json
+    else
+        # make json labels
+        for x in ${extract_set//-/_}; do
+            data2json.sh --feat ${dumpdir}/tts/${x}/feats.scp \
+              data/tts/${x} ${tts_dict} > ${dumpdir}/tts/${x}/data.json
+        done
+    fi
 
 fi
 
@@ -313,7 +328,7 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
     # Make MFCCs and compute the energy-based VAD for each dataset
     mfccdir=mfcc
     vaddir=mfcc
-    for name in ${train_set} ${dev_set} ${eval_set}; do
+    for name in ${extract_set//-/_}; do #${train_set} ${dev_set} ${eval_set}; do
         utils/copy_data_dir.sh data/tts/${name} data/tts/${name}_mfcc_16k
         utils/data/resample_data_dir.sh 16000 data/tts/${name}_mfcc_16k
         steps/make_mfcc.sh \
@@ -339,14 +354,14 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
     fi
     
     # Extract x-vector
-    for name in ${train_set} ${dev_set} ${eval_set}; do
+    for name in ${extract_set//-/_}; do #${train_set} ${dev_set} ${eval_set}; do
         sid/nnet3/xvector/extract_xvectors.sh --cmd "$train_cmd --mem 4G" --nj ${nj} \
             ${nnet_dir} data/tts/${name}_mfcc_16k \
             ${nnet_dir}/xvectors_${name}
     done
     
     # Update json
-    for name in ${train_set} ${dev_set} ${eval_set}; do
+    for name in ${extract_set//-/_}; do #${train_set} ${dev_set} ${eval_set}; do
         local/update_json.sh ${dumpdir}/tts/${name}/data.json ${nnet_dir}/xvectors_${name}/xvector.scp
     done
 fi
@@ -363,11 +378,11 @@ outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
 [ ! -e ${expdir}/results/model.0th.copy ] && cp ${synth_model} ${expdir}/results/model.0th.copy
 [ ! -e ${tts_decode_config} ] && cat ${tts_pre_decode_config} > ${tts_decode_config}
 [ ! -e ${expdir}/results/model.json ] && cp ${tts_model_conf} ${expdir}/results/model.json
-tts_resume=${expdir}/results/model.0th.copy
+pre_trained_tts_model=${expdir}/results/model.0th.copy
 if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     echo "stage 7:(TTS) 0th Decoding"
     
-    for name in ${dev_set} ${eval_set}; do
+    for name in ${extract_set//-/_}; do #${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}/${name} ] && mkdir -p ${outdir}/${name}
         cp ${dumpdir}/tts/${name}/data.json ${outdir}/${name}
@@ -400,7 +415,7 @@ if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
     echo "stage 8:(TTS) 0th Synthesis"
     
     pids=() # initialize pids
-    for name in ${dev_set} ${eval_set}; do
+    for name in ${extract_set//-/_}; do #${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}_denorm/${name} ] && mkdir -p ${outdir}_denorm/${name}
         apply-cmvn --norm-vars=true --reverse=true ${tts_cmvn} \
@@ -427,10 +442,10 @@ if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
 fi
 
 
-if [ -z ${tts_resume} ]; then
-  echo "Start TTS fine-tuning from ${tts_resume}"
+if [ -z ${pre_trained_tts_model} ]; then
+  echo "Start TTS fine-tuning from ${pre_trained_tts_model}"
 else   
-  echo "Resume TTS training from ${tts_resume}"
+  echo "Resume TTS training from ${pre_trained_tts_model}"
 fi
 if [ -z ${tag} ]; then
     expname=${train_set}_${backend}_$(basename ${tts_train_config%.*})
@@ -442,7 +457,10 @@ outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})
 if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
     echo "stage 9:(TTS) Model Training"
     
-    cat ${tts_pre_train_config} | sed -e 's/epochs: 100/epochs: 10/' > ${tts_train_config}
+    cat ${tts_pre_train_config} | sed -e 's/epochs: 100/epochs: 3/' \
+    | sed -e 's/transformer-lr: 1.0/transformer-lr: 1e-8/' \
+    | sed -e 's/# other/# other\nreport-interval-iters: 1/' > ${tts_train_config}
+    
     
     tr_json=${tts_feat_tr_dir}/data.json
     dt_json=${tts_feat_dt_dir}/data.json
@@ -455,6 +473,7 @@ if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
            --verbose ${verbose} \
            --seed ${seed} \
            --resume ${tts_resume} \
+           --model ${pre_trained_tts_model} \
            --train-json ${tr_json} \
            --valid-json ${dt_json} \
            --config ${tts_train_config}
@@ -467,7 +486,7 @@ fi
 outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})
 if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
     echo "stage 10:(TTS) Decoding"
-    
+    nj=1
     if [ ${n_average} -gt 0 ]; then
         average_checkpoints.py --backend ${backend} \
                                --snapshots ${expdir}/results/snapshot.ep.* \
@@ -478,7 +497,7 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
     for name in ${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}/${name} ] && mkdir -p ${outdir}/${name}
-        cp ${dumpdir}/${name}/data.json ${outdir}/${name}
+        cp ${dumpdir}/tts/${name}/data.json ${outdir}/${name}
         splitjson.py --parts ${nj} ${outdir}/${name}/data.json
         # decode in parallel
         ${train_cmd} JOB=1:${nj} ${outdir}/${name}/log/decode.JOB.log \
@@ -504,12 +523,12 @@ fi
 
 if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
     echo "stage 11:(TTS) Synthesis"
-    
+    nj=1
     pids=() # initialize pids
     for name in ${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}_denorm/${name} ] && mkdir -p ${outdir}_denorm/${name}
-        apply-cmvn --norm-vars=true --reverse=true data/${train_set}/cmvn.ark \
+        apply-cmvn --norm-vars=true --reverse=true ${tts_cmvn} \
             scp:${outdir}/${name}/feats.scp \
             ark,scp:${outdir}_denorm/${name}/feats.ark,${outdir}_denorm/${name}/feats.scp
         convert_fbank.sh --nj ${nj} --cmd "${train_cmd}" \

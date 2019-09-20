@@ -309,6 +309,13 @@ def train(args):
                 args.batch_size, args.batch_size * args.ngpu))
             args.batch_size *= args.ngpu
 
+    # load trained model parameters
+    if args.model:
+        logging.info('reading model parameters from ' + args.model)
+        torch_load(args.model, model)
+        model.eval()
+        reporter = model.reporter
+
     # set torch device
     device = torch.device("cuda" if args.ngpu > 0 else "cpu")
     model = model.to(device)
