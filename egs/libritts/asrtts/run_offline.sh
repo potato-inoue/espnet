@@ -39,10 +39,6 @@ tts_model=model.loss.best
 n_average=1           # if > 0, the model averaged with n_average ckpts will be used instead of model.loss.best
 griffin_lim_iters=64  # the number of iterations of Griffin-Lim
 
-# pre-trained model urls for downloads.
-asr_model="librispeech.transformer.ngpu4"
-tts_model="libritts.transformer.v1"
-
 # Set this to somewhere where you want to put your data, or where
 # someone else has already put it. You'll want to change this
 # if you're not on the CLSP grid.
@@ -69,24 +65,35 @@ download_set=""
 prep_set="dev-clean" #"test-clean test-other"
 extract_set="test-clean dev-clean"  #"test-other" #"dev-clean dev-other"
 
+# pre-trained model urls for downloads.
+asr_model="librispeech.transformer.ngpu4"
+tts_model="libritts.transformer.v1"
+
 # Cut function
 tts_fbank=true # First half of stage 4 
 tts_dump=false   # Last half of stage 4 
-select_speaker=false
 
-tts_data_set="sample_rev2" #"all"
-train_set=${tts_data_set}_train
-dev_set=${tts_data_set}_dev
-eval_set=${tts_data_set}_eval
+# speaker selection
+set_name="test_clean_22050"
+spk="237"
+train_num=250
+dev_num=14
+eval_num=15
 
+# auto setting 
+deveval_num=$(($dev_num + $eval_num))
+tts_data_set="${set_name}_${spk}"
+train_set="${tts_data_set}_train_no_dev"
+dev_set="${tts_data_set}_dev"
+eval_set="${tts_data_set}_eval"
 
 asr_model_dir=exp/asr/${asr_model}
 case "${asr_model}" in
-    "librispeech.transformer.ngpu1") asr_url="https://drive.google.com/open?id=1bOaOEIZBveERti0x6mnBYiNsn6MSRd2E" \
-      asr_cmvn="${asr_model_dir}/data/train_960/cmvn.ark" \
-      asr_pre_decode_config="${asr_model_dir}/conf/tuning/decode_pytorch_transformer.yaml" \ 
-      recog_model="${asr_model_dir}/exp/train_960_pytorch_train_pytorch_transformer_lr5.0_ag8.v2/results/model.last10.avg.best" \
-      lang_model="${asr_model_dir}/exp/train_rnnlm_pytorch_lm_unigram5000/rnnlm.model.best" ;;
+    # "librispeech.transformer.ngpu1") asr_url="https://drive.google.com/open?id=1bOaOEIZBveERti0x6mnBYiNsn6MSRd2E" \
+    #   asr_cmvn="${asr_model_dir}/data/train_960/cmvn.ark" \
+    #   asr_pre_decode_config="${asr_model_dir}/conf/tuning/decode_pytorch_transformer.yaml" \ 
+    #   recog_model="${asr_model_dir}/exp/train_960_pytorch_train_pytorch_transformer_lr5.0_ag8.v2/results/model.last10.avg.best" \
+    #   lang_model="${asr_model_dir}/exp/train_rnnlm_pytorch_lm_unigram5000/rnnlm.model.best" ;;
   
     "librispeech.transformer.ngpu4") asr_url="https://drive.google.com/open?id=1BtQvAnsFvVi-dp_qsaFP7n4A_5cwnlR6" \
       asr_cmvn="${asr_model_dir}/data/train_960/cmvn.ark" \
@@ -97,7 +104,6 @@ case "${asr_model}" in
     *) echo "No such models: ${asr_model}"; exit 1 ;;
 esac
 echo "ASR model: ${asr_model_dir}"
-  
 
 tts_model_dir=exp/tts/${tts_model}
 case "${tts_model}" in
@@ -112,7 +118,6 @@ case "${tts_model}" in
     *) echo "No such models: ${tts_model}"; exit 1 ;;
 esac
 echo "TTS model: ${tts_model_dir}"
-
 
 if [ ${stage} -le -2 ] && [ ${stop_stage} -ge -2 ]; then
     echo "stage -2: Pre-trained model Download"
@@ -130,7 +135,6 @@ if [ ${stage} -le -2 ] && [ ${stop_stage} -ge -2 ]; then
     fi
 fi
 
-
 if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
     echo "stage -1: Data Download"
     mkdir -p ${datadir}
@@ -139,7 +143,6 @@ if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
         local/download_and_untar.sh ${datadir} ${data_url} ${part}
     done
 fi
-
 
 if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     ### Task dependent. You have to make data the following preparation part by yourself.
@@ -154,7 +157,6 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     done
 
 fi
-
 
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     ### Task dependent. You have to design training and dev name by yourself.
@@ -258,6 +260,27 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
             #remove utt having more than 400 characters
             #remove utt having less than 1 charactors (= no recognized text)
             remove_longshortdata.sh --maxframes 3000 --maxchars 400 --minchars 1 data/tts/${x}_org data/tts/${x}
+
+            if [ -e exp/tts/spk_list/super ]; then
+                rm exp/tts/spk_list/super/*
+            else
+                mkdir -p exp/tts/spk_list/super
+            fi
+            if [ -e exp/tts/spk_list/sub ]; then
+                rm exp/tts/spk_list/sub/*
+            else
+                mkdir -p exp/tts/spk_list/sub
+            fi
+
+            cat data/tts/${x}/spk2utt | awk '{print $1}' > exp/tts/spk_list/super/${x}.txt
+            cat exp/tts/spk_list/super/${x}.txt | while read -r line; do
+                spk=$(echo $line | awk -F'_' '{print $1}')
+                echo $line >> exp/tts/spk_list/sub/${x}_${spk}.txt
+            done
+            find exp/tts/spk_list/sub/ -name "${x}_*.txt" | sort | while read -r line; do
+                spk=$(head -n 1 $line | awk -F'_' '{print $1}')
+                utils/subset_data_dir.sh --spk-list ${line} data/tts/${x} data/tts/${x}_${spk}
+            done
         done
 
         for x in ${extract_set//-/_}; do
@@ -270,14 +293,11 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
     if [ ${tts_dump} == 'true' ]; then
         echo "Extract single speaker from data/tts/test_clean"
 
-        #Extract single-speaker
-        utils/subset_data_dir.sh --first data/tts/test_clean 187 data/tts/${tts_data_set}
-
-        #make a dev set
-        utils/subset_data_dir.sh --last data/tts/${tts_data_set} 37 data/tts/${tts_data_set}_deveval
-        utils/subset_data_dir.sh --first data/tts/${tts_data_set}_deveval 18 data/tts/${dev_set}
-        utils/subset_data_dir.sh --last data/tts/${tts_data_set}_deveval 19 data/tts/${eval_set}
-        n=$(( $(wc -l < data/tts/${tts_data_set}/wav.scp) - 37 ))
+        # make a dev set
+        utils/subset_data_dir.sh --last data/tts/${tts_data_set} ${deveval_num} data/tts/${tts_data_set}_deveval
+        utils/subset_data_dir.sh --last data/tts/${tts_data_set}_deveval ${eval_num} data/tts/${eval_set}
+        utils/subset_data_dir.sh --first data/tts/${tts_data_set}_deveval ${dev_num} data/tts/${dev_set}
+        n=$(( $(wc -l < data/tts/${tts_data_set}/wav.scp) - ${deveval_num} ))
         utils/subset_data_dir.sh --first data/tts/${tts_data_set} ${n} data/tts/${train_set}
 
         #dump features for decoding
@@ -294,7 +314,6 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
 
 fi
 
-
 echo "dictionary: ${tts_dict}"
 if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     ### Task dependent. You have to check non-linguistic symbols used in the corpus.
@@ -303,7 +322,6 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     mkdir -p data/tts/lang_1char
     cp ${tts_dict} data/tts/lang_1char/${tts_dict##*/}
 
-    if [ ${select_speaker} == "true" ]; then
         # make json labels
         data2json.sh --feat ${tts_feat_tr_dir}/feats.scp \
             data/tts/${train_set} ${tts_dict} > ${tts_feat_tr_dir}/data.json
@@ -311,14 +329,6 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
             data/tts/${dev_set} ${tts_dict} > ${tts_feat_dt_dir}/data.json
         data2json.sh --feat ${tts_feat_ev_dir}/feats.scp \
             data/tts/${eval_set} ${tts_dict} > ${tts_feat_ev_dir}/data.json
-    else
-        # make json labels
-        for x in ${extract_set//-/_}; do
-            data2json.sh --feat ${dumpdir}/tts/${x}/feats.scp \
-              data/tts/${x} ${tts_dict} > ${dumpdir}/tts/${x}/data.json
-        done
-    fi
-
 fi
 
 
@@ -328,7 +338,8 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
     # Make MFCCs and compute the energy-based VAD for each dataset
     mfccdir=mfcc
     vaddir=mfcc
-    for name in ${extract_set//-/_}; do #${train_set} ${dev_set} ${eval_set}; do
+    # for name in ${extract_set//-/_}; do # for all check
+    for name in ${train_set} ${dev_set} ${eval_set}; do
         utils/copy_data_dir.sh data/tts/${name} data/tts/${name}_mfcc_16k
         utils/data/resample_data_dir.sh 16000 data/tts/${name}_mfcc_16k
         steps/make_mfcc.sh \
@@ -354,14 +365,16 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
     fi
     
     # Extract x-vector
-    for name in ${extract_set//-/_}; do #${train_set} ${dev_set} ${eval_set}; do
+    # for name in ${extract_set//-/_}; do # for all check
+    for name in ${train_set} ${dev_set} ${eval_set}; do
         sid/nnet3/xvector/extract_xvectors.sh --cmd "$train_cmd --mem 4G" --nj ${nj} \
             ${nnet_dir} data/tts/${name}_mfcc_16k \
             ${nnet_dir}/xvectors_${name}
     done
     
     # Update json
-    for name in ${extract_set//-/_}; do #${train_set} ${dev_set} ${eval_set}; do
+    # for name in ${extract_set//-/_}; do # for all check
+    for name in ${train_set} ${dev_set} ${eval_set}; do
         local/update_json.sh ${dumpdir}/tts/${name}/data.json ${nnet_dir}/xvectors_${name}/xvector.scp
     done
 fi
@@ -382,7 +395,8 @@ pre_trained_tts_model=${expdir}/results/model.0th.copy
 if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     echo "stage 7:(TTS) 0th Decoding"
     
-    for name in ${extract_set//-/_}; do #${dev_set} ${eval_set}; do
+    for name in ${extract_set//-/_}; do # for all check
+    # for name in ${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}/${name} ] && mkdir -p ${outdir}/${name}
         cp ${dumpdir}/tts/${name}/data.json ${outdir}/${name}
@@ -415,7 +429,8 @@ if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
     echo "stage 8:(TTS) 0th Synthesis"
     
     pids=() # initialize pids
-    for name in ${extract_set//-/_}; do #${dev_set} ${eval_set}; do
+    for name in ${extract_set//-/_}; do # for all check
+    for name in ${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}_denorm/${name} ] && mkdir -p ${outdir}_denorm/${name}
         apply-cmvn --norm-vars=true --reverse=true ${tts_cmvn} \
@@ -440,7 +455,6 @@ if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
     [ ${i} -gt 0 ] && echo "$0: ${i} background jobs are failed." && false
     echo "Finished."
 fi
-
 
 if [ -z ${pre_trained_tts_model} ]; then
   echo "Start TTS fine-tuning from ${pre_trained_tts_model}"
@@ -478,7 +492,6 @@ if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
            --valid-json ${dt_json} \
            --config ${tts_train_config}
 fi
-
 
 if [ ${n_average} -gt 0 ]; then
     tts_model=model.last${n_average}.avg.best
@@ -519,7 +532,6 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
     i=0; for pid in "${pids[@]}"; do wait ${pid} || ((i++)); done
     [ ${i} -gt 0 ] && echo "$0: ${i} background jobs are failed." && false
 fi
-
 
 if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
     echo "stage 11:(TTS) Synthesis"
