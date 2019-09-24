@@ -313,7 +313,6 @@ def train(args):
     if args.model:
         logging.info('reading model parameters from ' + args.model)
         torch_load(args.model, model)
-        model.eval()
         reporter = model.reporter
 
     # set torch device
