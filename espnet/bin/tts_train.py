@@ -49,8 +49,6 @@ def get_parser():
                         help='Random seed')
     parser.add_argument('--resume', '-r', default='', type=str, nargs='?',
                         help='Resume the training from snapshot')
-    parser.add_argument('--model', default='', type=str, nargs='?',
-                        help='Model file parameters to read')
     parser.add_argument('--minibatches', '-N', type=int, default='-1',
                         help='Process only N minibatches (for debug)')
     parser.add_argument('--verbose', '-V', default=0, type=int,
@@ -123,6 +121,9 @@ def get_parser():
                         help='Number of samples of attention to be saved')
     parser.add_argument('--keep-all-data-on-mem', default=False, type=strtobool,
                         help='Whether to keep all data on memory')
+    # fine-tuning related
+    parser.add_argument('--pre-trained-model', default='', type=str, nargs='?',
+                        help='Model file parameters to read')
 
     return parser
 

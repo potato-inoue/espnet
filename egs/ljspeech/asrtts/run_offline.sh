@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2018 Nagoya University (Tomoki Hayashi)
+# Copyright 2019 Okayama University (Katsuki Inoue)
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 . ./path.sh || exit 1;
@@ -9,11 +9,11 @@
 # general configuration
 backend=pytorch
 stage=8
-stop_stage=8
+stop_stage=10
 ngpu=1       # number of gpus ("0" uses cpu, otherwise use gpu)
 nj=32        # numebr of parallel jobs
 dumpdir=dump # directory to dump full features
-verbose=0    # verbose option (if set > 0, get more log)
+verbose=1    # verbose option (if set > 0, get more log)
 N=0          # number of minibatches to be used (mainly for debugging). "0" uses all minibatches.
 seed=1       # random seed number
 resume=""    # the snapshot path to resume (if set empty, no effect)
@@ -35,7 +35,8 @@ do_delta=false
 #                                                # now we support tacotron2, transformer, and fastspeech
 #                                                # see more info in the header of each config.
 # decode_config=conf/decode.yaml
-tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.rev0.yaml"
+spk="237"
+tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1.rev1.yaml"
 tts_decode_config="conf/tts_decode.fine-tuning.yaml"
 asr_decode_config="conf/asr_decode.fine-tuning.yaml"
 
@@ -71,7 +72,6 @@ tts_dump=true   # Last half of stage 4
 
 # speaker selection
 set_name="test_clean_22050"
-spk="237"
 train_num=250
 dev_num=14
 eval_num=15
@@ -225,16 +225,16 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
         n=$(( $(wc -l < data/tts/${tts_data_set}/wav.scp) - ${deveval_num} ))
         utils/subset_data_dir.sh --first data/tts/${tts_data_set} ${n} data/tts/${train_set}
 
-        # compute statistics for global mean-variance normalization
-        # compute-cmvn-stats scp:data/tts/${train_set}/feats.scp data/tts/${train_set}/cmvn.ark
-
         # dump features for training
         dump.sh --cmd "$train_cmd" --nj 1 --do_delta false \
-            data/tts/${train_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_train ${tts_feat_tr_dir}
+            data/tts/${train_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_train \
+            ${tts_feat_tr_dir}
         dump.sh --cmd "$train_cmd" --nj 1 --do_delta false \
-            data/tts/${dev_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_dev ${tts_feat_dt_dir}
+            data/tts/${dev_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_dev \
+            ${tts_feat_dt_dir}
         dump.sh --cmd "$train_cmd" --nj 1 --do_delta false \
-            data/tts/${eval_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_eval ${tts_feat_ev_dir}
+            data/tts/${eval_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_eval \
+            ${tts_feat_ev_dir}
     fi
 fi
 
@@ -270,9 +270,9 @@ outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
 pre_trained_tts_model=${expdir}/results/model.0th.copy
 if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
     echo "stage 6:(TTS) 0th Decoding"
-
+    nj=8
     pids=() # initialize pids
-    for name in ${dev_set} ${eval_set}; do #${dev_set} ${eval_set}; do
+    for name in ${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}/${name} ] && mkdir -p ${outdir}/${name}
         cp ${dumpdir}/tts/${name}/data.json ${outdir}/${name}
@@ -302,9 +302,9 @@ fi
 
 if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     echo "stage 7:(TTS) 0th Synthesis"
-
+    nj=5
     pids=() # initialize pids
-    for name in ${dev_set} ${eval_set}; do #${dev_set} ${eval_set}; do
+    for name in ${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}_denorm/${name} ] && mkdir -p ${outdir}_denorm/${name}
         apply-cmvn --norm-vars=true --reverse=true ${tts_cmvn} \
@@ -345,11 +345,11 @@ outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})
 if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
     echo "stage 8:(TTS) Model Training"
 
-    cat ${tts_pre_train_config} | sed -e "s/epochs: 100/epochs: 10/" \
-    | sed -e "s/# other/# other\nreport-interval-iters: 1/" \
-    | sed -e "s/save-interval-epoch: 10/save-interval-epoch: 1/" > ${tts_train_config}
-    # | sed -e 's/transformer-lr: 1.0/transformer-lr: 1e-8/' 
-    
+    cat ${tts_pre_train_config} | sed -e "s/epochs: 1000/epochs: 100/" \
+    | sed -e "s/# other/# other\nreport-interval-iters: 2/" \
+    | sed -e "s/save-interval-epoch: 10/save-interval-epoch: 1/" \
+    | sed -e 's/transformer-lr: 1.0/transformer-lr: 1.0/' \
+    | sed -e "s/batch-bins: 2277000/batch-bins: 339600/" > ${tts_train_config}
 
     tr_json=${tts_feat_tr_dir}/data.json
     dt_json=${tts_feat_dt_dir}/data.json
@@ -363,7 +363,7 @@ if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
            --verbose ${verbose} \
            --seed ${seed} \
            --resume ${resume} \
-           --model ${pre_trained_tts_model} \
+           --pre-trained-model ${pre_trained_tts_model} \
            --train-json ${tr_json} \
            --valid-json ${dt_json} \
            --config ${tts_train_config}
@@ -372,9 +372,11 @@ fi
 if [ ${n_average} -gt 0 ]; then
     model=model.last${n_average}.avg.best
 fi
+
 outdir=${expdir}/outputs_${model}_$(basename ${tts_decode_config%.*})
 if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
     echo "stage 9:(TTS) Decoding"
+    nj=8
     if [ ${n_average} -gt 0 ]; then
         average_checkpoints.py --backend ${backend} \
                                --snapshots ${expdir}/results/snapshot.ep.* \
@@ -385,7 +387,7 @@ if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
     for name in ${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}/${name} ] && mkdir -p ${outdir}/${name}
-        cp ${dumpdir}/${name}/data.json ${outdir}/${name}
+        cp ${dumpdir}/tts/${name}/data.json ${outdir}/${name}
         splitjson.py --parts ${nj} ${outdir}/${name}/data.json
         # decode in parallel
         ${train_cmd} JOB=1:${nj} ${outdir}/${name}/log/decode.JOB.log \
@@ -396,7 +398,7 @@ if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
                 --out ${outdir}/${name}/feats.JOB \
                 --json ${outdir}/${name}/split${nj}utt/data.JOB.json \
                 --model ${expdir}/results/${model} \
-                --config ${decode_config}
+                --config ${tts_decode_config}
         # concatenate scp files
         for n in $(seq ${nj}); do
             cat "${outdir}/${name}/feats.$n.scp" || exit 1;
@@ -408,13 +410,15 @@ if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
     [ ${i} -gt 0 ] && echo "$0: ${i} background jobs are failed." && false
 fi
 
+
 if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
     echo "stage 10:(TTS) Synthesis"
+    nj=8
     pids=() # initialize pids
     for name in ${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}_denorm/${name} ] && mkdir -p ${outdir}_denorm/${name}
-        apply-cmvn --norm-vars=true --reverse=true data/tts/${train_set}/cmvn.ark \
+        apply-cmvn --norm-vars=true --reverse=true ${tts_cmvn} \
             scp:${outdir}/${name}/feats.scp \
             ark,scp:${outdir}_denorm/${name}/feats.ark,${outdir}_denorm/${name}/feats.scp
         convert_fbank.sh --nj ${nj} --cmd "${train_cmd}" \

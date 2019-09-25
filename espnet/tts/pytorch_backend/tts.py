@@ -310,9 +310,9 @@ def train(args):
             args.batch_size *= args.ngpu
 
     # load trained model parameters
-    if args.model:
-        logging.info('reading model parameters from ' + args.model)
-        torch_load(args.model, model)
+    if args.pre_trained_model:
+        logging.info('reading model parameters from ' + args.pre_trained_model)
+        torch_load(args.pre_trained_model, model)
         reporter = model.reporter
 
     # set torch device
@@ -460,7 +460,9 @@ def train(args):
 
     # Write a log of evaluation statistics for each epoch
     trainer.extend(extensions.LogReport(trigger=report_interval))
-    report_keys = ['epoch', 'iteration', 'elapsed_time'] + plot_keys
+    trainer.extend(extensions.observe_value('factor', lambda trainer: trainer.updater.get_optimizer('main').factor), trigger=(1, 'iteration'))
+    trainer.extend(extensions.observe_value('_rate', lambda trainer: trainer.updater.get_optimizer('main')._rate), trigger=(1, 'iteration'))
+    report_keys = ['epoch', 'iteration', 'elapsed_time', 'factor', '_rate' ] + plot_keys
     trainer.extend(extensions.PrintReport(report_keys), trigger=report_interval)
     trainer.extend(extensions.ProgressBar(), trigger=report_interval)
 
