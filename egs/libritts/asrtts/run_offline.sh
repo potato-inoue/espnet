@@ -8,10 +8,10 @@
 
 # general configuration
 backend=pytorch
-stage=10
-stop_stage=11
+stage=7
+stop_stage=8
 ngpu=1        # number of gpu in training
-nj=32 #16     # numebr of parallel jobs
+nj=1 #32 #16     # numebr of parallel jobs
 dumpdir=dump  # directory to dump full features
 verbose=1     # verbose option (if set > 1, get more log)
 seed=1        # random seed number
@@ -30,7 +30,9 @@ win_length="" # window length
 do_delta=false
 
 # tts config files
-tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.rev8.yaml"
+spk="1089"
+tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1.rev2.yaml"
+# tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.rev8.yaml"
 tts_decode_config="conf/tts_decode.fine-tuning.yaml"
 asr_decode_config="conf/asr_decode.fine-tuning.yaml"
 
@@ -70,15 +72,25 @@ asr_model="librispeech.transformer.ngpu4"
 tts_model="libritts.transformer.v1"
 
 # Cut function
-tts_fbank=true # First half of stage 4 
-tts_dump=false   # Last half of stage 4 
+tts_fbank=false # First half of stage 4 
+tts_dump=true   # Last half of stage 4 
 
 # speaker selection
-set_name="test_clean_22050"
-spk="237"
-train_num=250
-dev_num=14
-eval_num=15
+set_name="test_clean"
+# spk="237"
+# train_num=250
+# dev_num=14
+# eval_num=15
+
+# spk="4446"
+# train_num=350
+# dev_num=17
+# eval_num=18
+
+spk="1089"
+train_num=167
+dev_num=10
+eval_num=10
 
 # auto setting 
 deveval_num=$(($dev_num + $eval_num))
@@ -235,19 +247,19 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
     
     if [ ${tts_fbank} == 'true' ]; then
         tts_fbankdir="fbank/tts"
-        for x in ${extract_set//-/_}; do
-            make_fbank.sh --cmd "${train_cmd}" --nj ${nj} \
-              --fs ${fs} \
-              --fmax "${fmax}" \
-              --fmin "${fmin}" \
-              --n_fft ${n_fft} \
-              --n_shift ${n_shift} \
-              --win_length "${win_length}" \
-              --n_mels ${n_mels} \
-              data/tts/${x}_org \
-              exp/tts/make_fbank/${x}_org \
-              ${tts_fbankdir}
-        done
+        # for x in ${extract_set//-/_}; do
+        #     make_fbank.sh --cmd "${train_cmd}" --nj ${nj} \
+        #       --fs ${fs} \
+        #       --fmax "${fmax}" \
+        #       --fmin "${fmin}" \
+        #       --n_fft ${n_fft} \
+        #       --n_shift ${n_shift} \
+        #       --win_length "${win_length}" \
+        #       --n_mels ${n_mels} \
+        #       data/tts/${x}_org \
+        #       exp/tts/make_fbank/${x}_org \
+        #       ${tts_fbankdir}
+        # done
 
         for x in ${extract_set//-/_}; do
             asr_result_dir=exp/asr/decode_result/${x}
@@ -283,11 +295,6 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
             done
         done
 
-        for x in ${extract_set//-/_}; do
-            dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
-              data/tts/${x}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${x} \
-              ${dumpdir}/tts/${x}
-        done
     fi
 
     if [ ${tts_dump} == 'true' ]; then
@@ -395,8 +402,8 @@ pre_trained_tts_model=${expdir}/results/model.0th.copy
 if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     echo "stage 7:(TTS) 0th Decoding"
     
-    for name in ${extract_set//-/_}; do # for all check
-    # for name in ${dev_set} ${eval_set}; do
+    # for name in ${extract_set//-/_}; do # for all check
+    for name in ${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}/${name} ] && mkdir -p ${outdir}/${name}
         cp ${dumpdir}/tts/${name}/data.json ${outdir}/${name}
@@ -429,7 +436,7 @@ if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
     echo "stage 8:(TTS) 0th Synthesis"
     
     pids=() # initialize pids
-    for name in ${extract_set//-/_}; do # for all check
+    # for name in ${extract_set//-/_}; do # for all check
     for name in ${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}_denorm/${name} ] && mkdir -p ${outdir}_denorm/${name}
@@ -471,8 +478,8 @@ outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})
 if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
     echo "stage 9:(TTS) Model Training"
     
-    cat ${tts_pre_train_config} | sed -e 's/epochs: 100/epochs: 3/' \
-    | sed -e 's/transformer-lr: 1.0/transformer-lr: 1e-8/' \
+    cat ${tts_pre_train_config} | sed -e 's/epochs: 100/epochs: 50/' \
+    | sed -e 's/transformer-lr: 1.0/transformer-lr: 0.1/' \
     | sed -e 's/# other/# other\nreport-interval-iters: 1/' > ${tts_train_config}
     
     
@@ -487,7 +494,7 @@ if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
            --verbose ${verbose} \
            --seed ${seed} \
            --resume ${tts_resume} \
-           --model ${pre_trained_tts_model} \
+           --pre-trained-model ${pre_trained_tts_model} \
            --train-json ${tr_json} \
            --valid-json ${dt_json} \
            --config ${tts_train_config}
