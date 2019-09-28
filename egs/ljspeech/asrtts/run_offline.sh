@@ -8,7 +8,7 @@
 
 # general configuration
 backend=pytorch
-stage=8
+stage=9
 stop_stage=10
 ngpu=1       # number of gpus ("0" uses cpu, otherwise use gpu)
 nj=32        # numebr of parallel jobs
@@ -35,7 +35,7 @@ do_delta=false
 #                                                # now we support tacotron2, transformer, and fastspeech
 #                                                # see more info in the header of each config.
 # decode_config=conf/decode.yaml
-spk="237"
+spk="1089"
 tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1.rev1.yaml"
 tts_decode_config="conf/tts_decode.fine-tuning.yaml"
 asr_decode_config="conf/asr_decode.fine-tuning.yaml"
@@ -67,14 +67,25 @@ asr_model="librispeech.transformer.ngpu4"
 tts_model="ljspeech.transformer.v1"
 
 # Cut function
-tts_fbank=true   # First half of stage 4 
+tts_fbank=false   # First half of stage 4 
 tts_dump=true   # Last half of stage 4 
 
 # speaker selection
 set_name="test_clean_22050"
-train_num=250
-dev_num=14
-eval_num=15
+# spk="237"
+# train_num=250
+# dev_num=14
+# eval_num=15
+
+# spk="4446"
+# train_num=350
+# dev_num=17
+# eval_num=18
+
+# spk="4446"
+train_num=167
+dev_num=10
+eval_num=10
 
 # auto setting 
 deveval_num=$(($dev_num + $eval_num))
@@ -344,8 +355,8 @@ expdir=exp/tts/${expname}; mkdir -p ${expdir}
 outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})
 if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
     echo "stage 8:(TTS) Model Training"
-
-    cat ${tts_pre_train_config} | sed -e "s/epochs: 1000/epochs: 100/" \
+    nj=32
+    cat ${tts_pre_train_config} | sed -e "s/epochs: 1000/epochs: 60/" \
     | sed -e "s/# other/# other\nreport-interval-iters: 2/" \
     | sed -e "s/save-interval-epoch: 10/save-interval-epoch: 1/" \
     | sed -e 's/transformer-lr: 1.0/transformer-lr: 1.0/' \

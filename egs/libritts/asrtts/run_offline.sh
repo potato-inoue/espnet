@@ -8,8 +8,8 @@
 
 # general configuration
 backend=pytorch
-stage=7
-stop_stage=8
+stage=9
+stop_stage=11
 ngpu=1        # number of gpu in training
 nj=1 #32 #16     # numebr of parallel jobs
 dumpdir=dump  # directory to dump full features
