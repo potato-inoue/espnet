@@ -31,7 +31,7 @@ do_delta=false
 
 # tts config files
 spk="1089"
-tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1.rev2.yaml"
+tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1e-2.rev1.yaml"
 # tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.rev8.yaml"
 tts_decode_config="conf/tts_decode.fine-tuning.yaml"
 asr_decode_config="conf/asr_decode.fine-tuning.yaml"
@@ -417,7 +417,7 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
             --verbose ${verbose} \
             --out ${outdir}/${name}/feats.JOB \
             --json ${outdir}/${name}/split${nj}utt/data.JOB.json \
-            --model ${expdir}/results/model.0th.copy \
+            --model ${pre_trained_tts_model} \
             --config ${tts_decode_config}
         
         # concatenate scp files
@@ -478,8 +478,8 @@ outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})
 if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
     echo "stage 9:(TTS) Model Training"
     
-    cat ${tts_pre_train_config} | sed -e 's/epochs: 100/epochs: 50/' \
-    | sed -e 's/transformer-lr: 1.0/transformer-lr: 0.1/' \
+    cat ${tts_pre_train_config} | sed -e 's/epochs: 100/epochs: 20/' \
+    | sed -e 's/transformer-lr: 1.0/transformer-lr: 1e-2/' \
     | sed -e 's/# other/# other\nreport-interval-iters: 1/' > ${tts_train_config}
     
     

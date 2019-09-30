@@ -8,8 +8,8 @@
 
 # general configuration
 backend=pytorch
-stage=9
-stop_stage=10
+stage=9 #8
+stop_stage=10 #10
 ngpu=1       # number of gpus ("0" uses cpu, otherwise use gpu)
 nj=32        # numebr of parallel jobs
 dumpdir=dump # directory to dump full features
@@ -35,7 +35,7 @@ do_delta=false
 #                                                # now we support tacotron2, transformer, and fastspeech
 #                                                # see more info in the header of each config.
 # decode_config=conf/decode.yaml
-spk="1089"
+spk="4446"
 tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1.rev1.yaml"
 tts_decode_config="conf/tts_decode.fine-tuning.yaml"
 asr_decode_config="conf/asr_decode.fine-tuning.yaml"
@@ -65,6 +65,7 @@ extract_set="test-clean dev-clean"
 # pre-trained model urls for downloads.
 asr_model="librispeech.transformer.ngpu4"
 tts_model="ljspeech.transformer.v1"
+vocoder_model="ljspeech.wavenet.softmax.ns.v1"
 
 # Cut function
 tts_fbank=false   # First half of stage 4 
@@ -78,14 +79,14 @@ set_name="test_clean_22050"
 # eval_num=15
 
 # spk="4446"
-# train_num=350
-# dev_num=17
-# eval_num=18
+train_num=350
+dev_num=17
+eval_num=18
 
-# spk="4446"
-train_num=167
-dev_num=10
-eval_num=10
+# spk="1089"
+# train_num=167
+# dev_num=10
+# eval_num=10
 
 # auto setting 
 deveval_num=$(($dev_num + $eval_num))
@@ -356,10 +357,10 @@ outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})
 if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
     echo "stage 8:(TTS) Model Training"
     nj=32
-    cat ${tts_pre_train_config} | sed -e "s/epochs: 1000/epochs: 60/" \
+    cat ${tts_pre_train_config} | sed -e "s/epochs: 1000/epochs: 50/" \
     | sed -e "s/# other/# other\nreport-interval-iters: 2/" \
     | sed -e "s/save-interval-epoch: 10/save-interval-epoch: 1/" \
-    | sed -e 's/transformer-lr: 1.0/transformer-lr: 1.0/' \
+    | sed -e 's/transformer-lr: 1.0/transformer-lr: 0.1/' \
     | sed -e "s/batch-bins: 2277000/batch-bins: 339600/" > ${tts_train_config}
 
     tr_json=${tts_feat_tr_dir}/data.json
@@ -450,4 +451,63 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
     i=0; for pid in "${pids[@]}"; do wait ${pid} || ((i++)); done
     [ ${i} -gt 0 ] && echo "$0: ${i} background jobs are failed." && false
     echo "Finished."
+fi
+
+if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
+    echo "stage 11: Synthesis with WaveNet"
+
+    echo "11.1: check corpus"
+    model_corpus=$(echo ${tts_model} | cut -d. -f 1)
+    vocoder_model_corpus=$(echo ${vocoder_model} | cut -d. -f 1)
+    if [ ${model_corpus} != ${vocoder_model_corpus} ]; then
+        echo "${vocoder_model} does not support ${tts_model} (Due to the sampling rate mismatch)."
+        exit 1
+    fi
+    
+    echo "11.2: check model"
+    case "${vocoder_model}" in
+        "ljspeech.wavenet.softmax.ns.v1") share_url="https://drive.google.com/open?id=1eA1VcRS9jzFa-DovyTgJLQ_jmwOLIi8L";;
+        "ljspeech.wavenet.mol.v1") share_url="https://drive.google.com/open?id=1sY7gEUg39QaO1szuN62-Llst9TrFno2t";;
+        *) echo "No such models: ${vocoder_model}"; exit 1 ;;
+    esac
+
+    echo "11.3: download model"
+    voc_dir=exp/wnv/${vocoder_model}
+    mkdir -p ${voc_dir}
+    if [ ! -e ${voc_dir}/.complete ]; then
+        download_from_google_drive.sh ${share_url} ${voc_dir} ".tar.gz"
+        touch ${voc_dir}/.complete
+    fi
+
+    echo "11.4: generate by wnv"
+    # This is hardcoded for now.
+    if [ ${vocoder_model} == "ljspeech.wavenet.mol.v1" ]; then
+        # Needs to use https://github.com/r9y9/wavenet_vocoder
+        # # that supports mixture of logistics/gaussians
+        # MDN_WAVENET_VOC_DIR=./local/r9y9_wavenet_vocoder
+        # if [ ! -d ${MDN_WAVENET_VOC_DIR} ]; then
+        #     git clone https://github.com/r9y9/wavenet_vocoder ${MDN_WAVENET_VOC_DIR}
+        #     cd ${MDN_WAVENET_VOC_DIR} && pip install . && cd -
+        # fi
+        # checkpoint=$(find ${download_dir}/${vocoder_models} -name "*.pth" | head -n 1)
+        # feats2npy.py ${outdir}/feats.scp ${outdir}_npy
+        # python ${MDN_WAVENET_VOC_DIR}/evaluate.py ${outdir}_npy $checkpoint $dst_dir \
+        #     --hparams "batch_size=1" \
+        #     --verbose ${verbose}
+        # rm -rf ${outdir}_npy
+        echo "wavenet.mol.v1"
+    else
+        for name in ${dev_set} ${eval_set}; do
+            checkpoint=$(find ${voc_dir} -name "checkpoint*" | head -n 1)
+            generate_wav.sh --nj 1 --cmd "${decode_cmd}" \
+                --fs ${fs} \
+                --n_fft ${n_fft} \
+                --n_shift ${n_shift} \
+                ${checkpoint} \
+                ${outdir}_denorm/${name} \
+                ${outdir}_denorm/${name}/log_wnv \
+                ${outdir}_denorm/${name}/wav_wnv
+        done
+    fi
+    echo "Finished"
 fi
