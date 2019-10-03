@@ -8,10 +8,10 @@
 
 # general configuration
 backend=pytorch
-stage=9 #8
-stop_stage=10 #10
+stage=${1}
+stop_stage=${2}
 ngpu=1       # number of gpus ("0" uses cpu, otherwise use gpu)
-nj=32        # numebr of parallel jobs
+nj=8        # numebr of parallel jobs
 dumpdir=dump # directory to dump full features
 verbose=1    # verbose option (if set > 0, get more log)
 N=0          # number of minibatches to be used (mainly for debugging). "0" uses all minibatches.
@@ -35,8 +35,8 @@ do_delta=false
 #                                                # now we support tacotron2, transformer, and fastspeech
 #                                                # see more info in the header of each config.
 # decode_config=conf/decode.yaml
-spk="4446"
-tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1.rev1.yaml"
+spk=${3}
+tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1.rev1e-1.yaml"
 tts_decode_config="conf/tts_decode.fine-tuning.yaml"
 asr_decode_config="conf/asr_decode.fine-tuning.yaml"
 
@@ -46,7 +46,7 @@ n_average=1 # if > 0, the model averaged with n_average ckpts will be used inste
 griffin_lim_iters=64  # the number of iterations of Griffin-Lim
 
 # root directory of db
-db_root=/export/a06/katsuki/DB #downloads
+db_root=/work/abelab/DB #/export/a06/katsuki/DB #downloads
 
 # exp tag
 tag="" # tag for managing experiments.
@@ -73,20 +73,9 @@ tts_dump=true   # Last half of stage 4
 
 # speaker selection
 set_name="test_clean_22050"
-# spk="237"
-# train_num=250
-# dev_num=14
-# eval_num=15
 
-# spk="4446"
-train_num=350
-dev_num=17
-eval_num=18
-
-# spk="1089"
-# train_num=167
-# dev_num=10
-# eval_num=10
+dev_num=${4}
+eval_num=${5}
 
 # auto setting 
 deveval_num=$(($dev_num + $eval_num))
@@ -179,19 +168,20 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
     if [ ${tts_fbank} == 'true' ]; then
         # Generate the fbank features; by default 80-dimensional fbanks on each frame
         fbankdir=fbank/tts
-        # for part in ${prep_set}; do
-        #     make_fbank.sh --cmd "${train_cmd}" --nj ${nj} \
-        #         --fs ${fs} \
-        #         --fmax "${fmax}" \
-        #         --fmin "${fmin}" \
-        #         --n_fft ${n_fft} \
-        #         --n_shift ${n_shift} \
-        #         --win_length "${win_length}" \
-        #         --n_mels ${n_mels} \
-        #         data/tts/${part//-/_}_org_22050 \
-        #         exp/tts/make_fbank/${part//-/_}_org_22050 \
-        #         ${fbankdir}
-        # done
+        for part in ${prep_set}; do
+            # make_fbank.sh --cmd "${train_cmd}" --nj ${nj} 
+            make_fbank.sh --cmd ${train_cmd} --nj 1 \
+                --fs ${fs} \
+                --fmax "${fmax}" \
+                --fmin "${fmin}" \
+                --n_fft ${n_fft} \
+                --n_shift ${n_shift} \
+                --win_length "${win_length}" \
+                --n_mels ${n_mels} \
+                data/tts/${part//-/_}_org_22050 \
+                exp/tts/make_fbank/${part//-/_}_org_22050 \
+                ${fbankdir}
+        done
 
         for x in ${extract_set//-/_}; do
             asr_result_dir=exp/asr/decode_result/${x}
@@ -238,13 +228,13 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
         utils/subset_data_dir.sh --first data/tts/${tts_data_set} ${n} data/tts/${train_set}
 
         # dump features for training
-        dump.sh --cmd "$train_cmd" --nj 1 --do_delta false \
+        dump.sh --cmd "${train_cmd}" --nj 1 --do_delta false \
             data/tts/${train_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_train \
             ${tts_feat_tr_dir}
-        dump.sh --cmd "$train_cmd" --nj 1 --do_delta false \
+        dump.sh --cmd "${train_cmd}" --nj 1 --do_delta false \
             data/tts/${dev_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_dev \
             ${tts_feat_dt_dir}
-        dump.sh --cmd "$train_cmd" --nj 1 --do_delta false \
+        dump.sh --cmd "${train_cmd}" --nj 1 --do_delta false \
             data/tts/${eval_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_eval \
             ${tts_feat_ev_dir}
     fi
@@ -357,7 +347,7 @@ outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})
 if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
     echo "stage 8:(TTS) Model Training"
     nj=32
-    cat ${tts_pre_train_config} | sed -e "s/epochs: 1000/epochs: 50/" \
+    cat ${tts_pre_train_config} | sed -e "s/epochs: 1000/epochs: 100/" \
     | sed -e "s/# other/# other\nreport-interval-iters: 2/" \
     | sed -e "s/save-interval-epoch: 10/save-interval-epoch: 1/" \
     | sed -e 's/transformer-lr: 1.0/transformer-lr: 0.1/' \
@@ -388,7 +378,7 @@ fi
 outdir=${expdir}/outputs_${model}_$(basename ${tts_decode_config%.*})
 if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
     echo "stage 9:(TTS) Decoding"
-    nj=8
+    nj=6
     if [ ${n_average} -gt 0 ]; then
         average_checkpoints.py --backend ${backend} \
                                --snapshots ${expdir}/results/snapshot.ep.* \
@@ -425,7 +415,7 @@ fi
 
 if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
     echo "stage 10:(TTS) Synthesis"
-    nj=8
+    nj=6
     pids=() # initialize pids
     for name in ${dev_set} ${eval_set}; do
     (
@@ -497,7 +487,7 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
         # rm -rf ${outdir}_npy
         echo "wavenet.mol.v1"
     else
-        for name in ${dev_set} ${eval_set}; do
+        for name in ${eval_set}; do #${dev_set} ${eval_set}; do
             checkpoint=$(find ${voc_dir} -name "checkpoint*" | head -n 1)
             generate_wav.sh --nj 1 --cmd "${decode_cmd}" \
                 --fs ${fs} \
