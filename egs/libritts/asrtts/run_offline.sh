@@ -8,8 +8,8 @@
 
 # general configuration
 backend=pytorch
-stage=9
-stop_stage=11
+stage=12
+stop_stage=12
 ngpu=1        # number of gpu in training
 nj=1 #32 #16     # numebr of parallel jobs
 dumpdir=dump  # directory to dump full features
@@ -31,7 +31,7 @@ do_delta=false
 
 # tts config files
 spk="1089"
-tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1e-2.rev1.yaml"
+tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1e0.rev10.yaml"
 # tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.rev8.yaml"
 tts_decode_config="conf/tts_decode.fine-tuning.yaml"
 asr_decode_config="conf/asr_decode.fine-tuning.yaml"
@@ -74,6 +74,12 @@ tts_model="libritts.transformer.v1"
 # Cut function
 tts_fbank=false # First half of stage 4 
 tts_dump=true   # Last half of stage 4 
+
+# objective evaluation related
+asr_eval_model="librispeech.transformer.ngpu4"
+eval_tts_model=1                               # 1:evaluate tts model, 0:evaluate ground truth
+voc="GL"                                       # the selection of vocoder
+api="v2"                                       # v1: w/ att_ws generation, v2: w/o att_ws generation
 
 # speaker selection
 set_name="test_clean"
@@ -478,9 +484,13 @@ outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})
 if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
     echo "stage 9:(TTS) Model Training"
     
-    cat ${tts_pre_train_config} | sed -e 's/epochs: 100/epochs: 20/' \
-    | sed -e 's/transformer-lr: 1.0/transformer-lr: 1e-2/' \
-    | sed -e 's/# other/# other\nreport-interval-iters: 1/' > ${tts_train_config}
+    cat ${tts_pre_train_config} | sed -e 's/epochs: 100/epochs: 100/' \
+    | sed -e 's/transformer-lr: 1.0/transformer-lr: 1.0/' \
+    | sed -e 's/# other/# other\nreport-interval-iters: 1/' \
+    | sed -e 's/accum-grad: 4/accum-grad: 1/' \
+    | sed -e 's/dropout-rate: 0.1/dropout-rate: 0.1/g' \
+    | sed -e 's/dropout-rate: 0.5/dropout-rate: 0.5/g' \
+    > ${tts_train_config}
     
     
     tr_json=${tts_feat_tr_dir}/data.json
@@ -568,4 +578,121 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
     i=0; for pid in "${pids[@]}"; do wait ${pid} || ((i++)); done
     [ ${i} -gt 0 ] && echo "$0: ${i} background jobs are failed." && false
     echo "Finished."
+fi
+
+if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
+    echo "stage 12: Objective Evaluation"
+    nj=5
+
+    # ASR model selection for CER objective evaluation 
+    asr_model_dir="exp/tts/${asr_eval_model}_asr"
+    case "${asr_eval_model}" in
+        "librispeech.transformer.ngpu4") asr_url="https://drive.google.com/open?id=1BtQvAnsFvVi-dp_qsaFP7n4A_5cwnlR6" \
+          asr_cmvn="${asr_model_dir}/data/train_960/cmvn.ark" \
+          asr_pre_decode_config="${asr_model_dir}/conf/tuning/decode_pytorch_transformer_large.yaml" \
+          recog_model="${asr_model_dir}/exp/train_960_pytorch_train_pytorch_transformer.v1_aheads8_batch-bins15000000_specaug/results/model.val5.avg.best" \
+          lang_model="${asr_model_dir}/exp/irielm.ep11.last5.avg/rnnlm.model.best" ;;
+
+        *) echo "No such models: ${asr_eval_model}"; exit 1 ;;
+    esac
+
+    # ASR model download (librispeech)
+    if [ ! -e ${asr_model_dir}/.complete ]; then
+        mkdir -p ${asr_model_dir}
+        download_from_google_drive.sh ${asr_url} ${asr_model_dir} ".tar.gz"
+        touch ${asr_model_dir}/.complete
+    fi
+    echo "ASR model: ${asr_model_dir} exits."
+
+
+    # Select TTS model
+    if [ ${eval_tts_model} == 1 ]; then
+        echo "Evaluate: $(basename ${train_config%.*})"
+    else
+        echo "Evaluate: ground truth"
+        expdir=exp/ground_truth
+        outdir=${expdir}/sym_link
+        for name in ${dev_set} ${eval_set}; do
+            mkdir -p ${outdir}_denorm/${name}/wav
+            cat < data/${name}/wav.scp | awk '{print $1}' | while read -r filename; do
+                if [ -L ${outdir}_denorm/${name}/wav/${filename}.wav ]; then
+                    unlink ${outdir}_denorm/${name}/wav/${filename}.wav
+                fi
+                ln -s ${db_root}/LJSpeech-1.1/wavs/${filename}.wav ${outdir}_denorm/${name}/wav/${filename}.wav
+            done
+        done
+    fi
+
+    # Select decoder
+    if [ ${voc} == "GL" ]; then
+        dir_tail=""
+    elif [ ${voc} == "WNV_softmax" ]; then
+        dir_tail="_wnv_nsf"
+    elif [ ${voc} == "WNV_mol" ]; then
+        dir_tail="_wnv_mol"
+    fi
+
+    asr_data_dir="${outdir}_denorm.ob_eval/${asr_model}_asr.data${dir_tail}"
+    asr_fbank_dir="${outdir}_denorm.ob_eval/${asr_model}_asr.fbank${dir_tail}"
+    asr_feat_dir="${outdir}_denorm.ob_eval/${asr_model}_asr.dump${dir_tail}"
+    asr_result_dir="${outdir}_denorm.ob_eval/${asr_model}_asr.result${dir_tail}"
+
+    # Data preparation for ASR
+    echo "12.1 Data preparation for ASR"
+    for name in ${eval_set}; do #${dev_set} 
+        local/data_prep_for_asr.sh ${outdir}_denorm/${name}/wav${dir_tail} ${asr_data_dir}/${name}
+        cp data/tts/${name}/text ${asr_data_dir}/${name}/text
+        utils/validate_data_dir.sh --no-feats ${asr_data_dir}/${name}
+    done
+    
+    # Feature extraction for ASR
+    echo "12.2 Feature extraction for ASR"
+    for name in ${eval_set}; do #${dev_set} 
+        steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj ${nj} \
+          --write_utt2num_frames true \
+          --write_utt2dur false \
+          ${asr_data_dir}/${name} \
+          ${outdir}_denorm.ob_eval/${asr_model}_asr.make_fbank${dir_tail}/${name} \
+          ${asr_fbank_dir}/${name}
+        utils/fix_data_dir.sh ${asr_data_dir}/${name}
+
+        dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
+          ${asr_data_dir}/${name}/feats.scp ${asr_cmvn} ${outdir}_denorm.ob_eval/${asr_model}_asr.dump_feats${dir_tail}/${name} \
+          ${asr_feat_dir}/${name}
+    done
+
+    # Dictionary and Json Data Preparation
+    echo "12.3 Dictionary and Json Data Preparation for ASR"
+    asr_dict="data/tts/decode_dict/X.txt"; mkdir -p ${asr_dict%/*}
+    echo "<unk> 1" > ${asr_dict}
+    for name in ${eval_set}; do #${dev_set} 
+        data2json.sh --feat ${asr_feat_dir}/${name}/feats.scp \
+          ${asr_data_dir}/${name} ${asr_dict} > ${asr_feat_dir}/${name}/data.json
+    done
+
+    # ASR decoding
+    echo "12.4 ASR decoding"
+    asr_decode_config="conf/tuning/decode_asr.yaml"
+    cat < ${asr_pre_decode_config} | sed -e 's/beam-size: 60/beam-size: 10/' > ${asr_decode_config}
+    for name in ${eval_set}; do #${dev_set} 
+
+        # split data
+        splitjson.py --parts ${nj} ${asr_feat_dir}/${name}/data.json
+    
+        # set batchsize 0 to disable batch decoding    
+        ${decode_cmd} JOB=1:${nj} ${asr_result_dir}.${api}/${name}/log/decode.JOB.log \
+            asr_recog.py \
+              --config ${asr_decode_config} \
+              --ngpu 0 \
+              --backend ${backend} \
+              --batchsize 0 \
+              --recog-json ${asr_feat_dir}/${name}/split${nj}utt/data.JOB.json \
+              --result-label ${asr_result_dir}.${api}/${name}/data.JOB.json \
+              --model ${recog_model} \
+              --api ${api} \
+              --rnnlm ${lang_model}
+
+        score_sclite_wo_dict.sh --wer true ${asr_result_dir}.${api}/${name}
+
+    done
 fi

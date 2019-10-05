@@ -298,7 +298,7 @@ def train(args):
     model_class = dynamic_import(args.model_module)
     model = model_class(idim, odim, args)
     assert isinstance(model, TTSInterface)
-    logging.info(model)
+    # logging.info(model)
     reporter = model.reporter
 
     # check the use of multi-gpu

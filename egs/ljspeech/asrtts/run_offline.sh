@@ -36,7 +36,7 @@ do_delta=false
 #                                                # see more info in the header of each config.
 # decode_config=conf/decode.yaml
 spk=${3}
-tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1.rev1e-1.yaml"
+tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1e-1.rev1.yaml"
 tts_decode_config="conf/tts_decode.fine-tuning.yaml"
 asr_decode_config="conf/asr_decode.fine-tuning.yaml"
 
@@ -46,7 +46,8 @@ n_average=1 # if > 0, the model averaged with n_average ckpts will be used inste
 griffin_lim_iters=64  # the number of iterations of Griffin-Lim
 
 # root directory of db
-db_root=/work/abelab/DB #/export/a06/katsuki/DB #downloads
+db_root=/export/a06/katsuki/DB #downloads
+# /work/abelab/DB 
 
 # exp tag
 tag="" # tag for managing experiments.
@@ -272,7 +273,7 @@ outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
 pre_trained_tts_model=${expdir}/results/model.0th.copy
 if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
     echo "stage 6:(TTS) 0th Decoding"
-    nj=8
+    nj=6
     pids=() # initialize pids
     for name in ${dev_set} ${eval_set}; do
     (
@@ -304,7 +305,7 @@ fi
 
 if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     echo "stage 7:(TTS) 0th Synthesis"
-    nj=5
+    nj=6
     pids=() # initialize pids
     for name in ${dev_set} ${eval_set}; do
     (
