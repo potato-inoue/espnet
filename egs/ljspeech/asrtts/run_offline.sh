@@ -36,7 +36,7 @@ do_delta=false
 #                                                # see more info in the header of each config.
 # decode_config=conf/decode.yaml
 spk=${3}
-tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1.rev1e-1.yaml"
+tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1e-1.rev1.yaml"
 tts_decode_config="conf/tts_decode.fine-tuning.yaml"
 asr_decode_config="conf/asr_decode.fine-tuning.yaml"
 
@@ -72,7 +72,7 @@ tts_fbank=false   # First half of stage 4
 tts_dump=true   # Last half of stage 4 
 
 # speaker selection
-set_name="test_clean_22050"
+set_name=${6}
 
 dev_num=${4}
 eval_num=${5}
@@ -145,10 +145,10 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     for part in ${prep_set}; do
         # use underscore-separated names in data directories.
         # local/data_prep_asr.sh ${db_root}/LibriTTS/${part} data/asr/${part//-/_}
-        local/data_prep_tts.sh ${db_root}/LibriTTS/${part} data/tts/${part//-/_}
-        mv data/tts/${part//-/_} data/tts/${part//-/_}_org
+        # local/data_prep_tts.sh ${db_root}/LibriTTS/${part} data/tts/${part//-/_}
+        # mv data/tts/${part//-/_} data/tts/${part//-/_}_org_24000
         
-        utils/copy_data_dir.sh data/tts/${part//-/_}_org data/tts/${part//-/_}_org_22050
+        utils/copy_data_dir.sh data/tts/${part//-/_}_org_24000 data/tts/${part//-/_}_org_22050
         utils/data/resample_data_dir.sh ${fs} data/tts/${part//-/_}_org_22050
     done
 fi
@@ -168,7 +168,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
     if [ ${tts_fbank} == 'true' ]; then
         # Generate the fbank features; by default 80-dimensional fbanks on each frame
         fbankdir=fbank/tts
-        for part in ${prep_set}; do
+        for part in ${prep_set//-/_}; do
             # make_fbank.sh --cmd "${train_cmd}" --nj ${nj} 
             make_fbank.sh --cmd ${train_cmd} --nj 1 \
                 --fs ${fs} \
@@ -178,22 +178,35 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
                 --n_shift ${n_shift} \
                 --win_length "${win_length}" \
                 --n_mels ${n_mels} \
-                data/tts/${part//-/_}_org_22050 \
-                exp/tts/make_fbank/${part//-/_}_org_22050 \
+                data/tts/${part}_org_22050 \
+                exp/tts/make_fbank/${part}_org_22050 \
                 ${fbankdir}
         done
 
         for x in ${extract_set//-/_}; do
             asr_result_dir=exp/asr/decode_result/${x}
 
+            # Adapt for ljspeech
+            utils/copy_data_dir.sh data/tts/${x}_org_22050 data/tts/${x}_adapt_22050
+            cp data/tts/${x}_adapt_22050/text data/tts/${x}_adapt_22050/text_org
+            cat data/tts/${x}_adapt_22050/text_org | awk '{print $1}' > data/tts/${x}_adapt_22050/text_id
+            cat data/tts/${x}_adapt_22050/text_org | awk '{for(i=2;i<=NF;i++){printf("%s ",$i)};printf("\n");}' \
+                | sed -e 's/"//g' -e 's/;//g' -e 's/://g' -e 's/-//g' \
+                | sed -e 's/\[//g' -e 's/\]//g' -e 's/(//g' -e 's/)//g' \
+                | tr a-z A-Z > data/tts/${x}_adapt_22050/text_adapt
+            paste -d " " data/tts/${x}_adapt_22050/text_id data/tts/${x}_adapt_22050/text_adapt \
+                > data/tts/${x}_adapt_22050/text
+
             #Replace txt to recog_txt
             concatjson.py ${asr_result_dir}/result.*.json > ${asr_result_dir}/result.json
-            local/make_tts_text.sh ${asr_result_dir} data/tts/${x}_org_22050
+            utils/copy_data_dir.sh data/tts/${x}_org_22050 data/tts/${x}_asr_22050
+            local/make_tts_text.sh ${asr_result_dir} data/tts/${x}_asr_22050
 
             #remove utt having more than 3000 frames
             #remove utt having more than 400 characters
             #remove utt having less than 1 charactors (= no recognized text)
-            remove_longshortdata.sh --maxframes 3000 --maxchars 400 --minchars 1 data/tts/${x}_org_22050 data/tts/${x}_22050
+            remove_longshortdata.sh --maxframes 3000 --maxchars 400 --minchars 1 data/tts/${x}_asr_22050 data/tts/${x}_asr_no_0rec_22050
+            remove_longshortdata.sh --maxframes 3000 --maxchars 400 --minchars 1 data/tts/${x}_adapt_22050 data/tts/${x}_adapt_no_0rec_22050
 
             if [ -e exp/tts/spk_list/super ]; then
                 rm exp/tts/spk_list/super/*
@@ -206,14 +219,15 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
                 mkdir -p exp/tts/spk_list/sub
             fi
 
-            cat data/tts/${x}_22050/spk2utt | awk '{print $1}' > exp/tts/spk_list/super/${x}_22050.txt
-            cat exp/tts/spk_list/super/${x}_22050.txt | while read -r line; do
+            cat data/tts/${x}_org_22050/spk2utt | awk '{print $1}' > exp/tts/spk_list/super/${x}_org_22050.txt
+            cat exp/tts/spk_list/super/${x}_org_22050.txt | while read -r line; do
                 spk=$(echo $line | awk -F'_' '{print $1}')
-                echo $line >> exp/tts/spk_list/sub/${x}_22050_${spk}.txt
+                echo $line >> exp/tts/spk_list/sub/${x}_org_22050_${spk}.txt
             done
-            find exp/tts/spk_list/sub/ -name "${x}_22050_*.txt" | sort | while read -r line; do
+            find exp/tts/spk_list/sub/ -name "${x}_org_22050_*.txt" | sort | while read -r line; do
                 spk=$(head -n 1 $line | awk -F'_' '{print $1}')
-                utils/subset_data_dir.sh --spk-list ${line} data/tts/${x}_22050 data/tts/${x}_22050_${spk}
+                utils/subset_data_dir.sh --spk-list ${line} data/tts/${x}_asr_no_0rec_22050 data/tts/${x}_asr_no_0rec_22050_${spk}
+                utils/subset_data_dir.sh --spk-list ${line} data/tts/${x}_adapt_no_0rec_22050 data/tts/${x}_adapt_no_0rec_22050_${spk}
             done
         done
 
@@ -272,7 +286,7 @@ outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
 pre_trained_tts_model=${expdir}/results/model.0th.copy
 if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
     echo "stage 6:(TTS) 0th Decoding"
-    nj=8
+    nj=6
     pids=() # initialize pids
     for name in ${dev_set} ${eval_set}; do
     (
@@ -304,7 +318,7 @@ fi
 
 if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     echo "stage 7:(TTS) 0th Synthesis"
-    nj=5
+    nj=6
     pids=() # initialize pids
     for name in ${dev_set} ${eval_set}; do
     (

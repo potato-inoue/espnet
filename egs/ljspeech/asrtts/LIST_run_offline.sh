@@ -3,27 +3,55 @@
 # Copyright 2019 Okayama University (Katsuki Inoue)
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
-# Dare preparation
-# ./run_offline.sh 4 5 "1089" 10 10 
-# ./run_offline.sh 4 5 "2300" 7 7 
-# ./run_offline.sh 4 5 "8230" 6 6 
-# ./run_offline.sh 4 5 "237" 15 15 
-# ./run_offline.sh 4 5 "4446" 18 18 
-# ./run_offline.sh 4 5 "5683" 10 10 
+# Data prep for 1st half
+# ./run_offline.sh 4 4 "1089" 10 10 "test_clean_asr_no_0rec_22050"
+
+# Data preparation for last half (ASR-text)
+# ./run_offline.sh 4 5 "1089" 10 10 "test_clean_asr_no_0rec_22050"
+# ./run_offline.sh 4 5 "2300" 7 7 "test_clean_asr_no_0rec_22050"
+# ./run_offline.sh 4 5 "8230" 6 6 "test_clean_asr_no_0rec_22050"
+# ./run_offline.sh 4 5 "237" 15 15 "test_clean_asr_no_0rec_22050"
+# ./run_offline.sh 4 5 "4446" 18 18 "test_clean_asr_no_0rec_22050"
+# ./run_offline.sh 4 5 "5683" 10 10 "test_clean_asr_no_0rec_22050"
+
+# Data preparation for last half (GT-text)
+# ./run_offline.sh 4 5 "1089" 10 10 "test_clean_adapt_no_0rec_22050"
+# ./run_offline.sh 4 5 "2300" 7 7 "test_clean_adapt_no_0rec_22050"
+# ./run_offline.sh 4 5 "8230" 6 6 "test_clean_adapt_no_0rec_22050"
+# ./run_offline.sh 4 5 "237" 15 15 "test_clean_adapt_no_0rec_22050"
+# ./run_offline.sh 4 5 "4446" 18 18 "test_clean_adapt_no_0rec_22050"
+# ./run_offline.sh 4 5 "5683" 10 10 "test_clean_adapt_no_0rec_22050"
+
+# 0th decode
+# ./run_offline.sh 6 7 "1089" 10 10 
+# ./run_offline.sh 6 7 "2300" 7 7 
+# ./run_offline.sh 6 7 "8230" 6 6 
+# ./run_offline.sh 6 7 "237" 15 15 
+# ./run_offline.sh 6 7 "4446" 18 18 
+# ./run_offline.sh 6 7 "5683" 10 10 
 
 # TTS train & decode
 # ./run_offline.sh 8 10 "1089" 10 10 
+# ./run_offline.sh 8 10 "2300" 7 7 
 # ./run_offline.sh 8 10 "8230" 6 6 
 # ./run_offline.sh 8 10 "237" 15 15 
 # ./run_offline.sh 8 10 "4446" 18 18 
 # ./run_offline.sh 8 10 "5683" 10 10 
+
+./run_offline.sh 8 10 "1089" 10 10 "test_clean_adapt_no_0rec_22050"
+./run_offline.sh 8 10 "2300" 7 7 "test_clean_adapt_no_0rec_22050"
+./run_offline.sh 8 10 "8230" 6 6 "test_clean_adapt_no_0rec_22050"
+./run_offline.sh 8 10 "237" 15 15 "test_clean_adapt_no_0rec_22050"
+./run_offline.sh 8 10 "4446" 18 18 "test_clean_adapt_no_0rec_22050"
+./run_offline.sh 8 10 "5683" 10 10 "test_clean_adapt_no_0rec_22050"
+
 
 # decode
 # ./run_offline.sh 9 10 "2300" 7 7 
 # ./run_offline.sh 9 10 "8230" 6 6 
 
 # WNV decode
-./run_offline.sh 11 11 "1089" 10 10 
+# ./run_offline.sh 11 11 "1089" 10 10 
 # ./run_offline.sh 11 11 "8230" 6 6 
 # ./run_offline.sh 11 11 "237" 15 15 
 # ./run_offline.sh 11 11 "4446" 18 18 
