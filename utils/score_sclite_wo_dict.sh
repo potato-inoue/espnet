@@ -23,7 +23,7 @@ concatjson.py ${dir}/data.*.json > ${dir}/data.json
 if [ $num_spkrs -eq 1 ]; then
     json2trn_wo_dict.py ${dir}/data.json --num-spkrs ${num_spkrs} --refs ${dir}/ref_org.wrd.trn --hyps ${dir}/hyp_org.wrd.trn
    
-    cat < ${dir}/hyp_org.wrd.trn | sed -e 's/▝//' | sed -e 's/▝/ /g' > ${dir}/hyp.wrd.trn
+    cat < ${dir}/hyp_org.wrd.trn | sed -e 's/▁//' | sed -e 's/▁/ /g' > ${dir}/hyp.wrd.trn
     cat < ${dir}/ref_org.wrd.trn | sed -e 's/\.//g' -e 's/\,//g' \
     | sed -e "s/!//g" -e "s/?//" > ${dir}/ref.wrd.trn
 
