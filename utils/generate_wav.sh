@@ -8,6 +8,7 @@ nj=2
 fs=22050
 n_fft=1024
 n_shift=256
+ngpu=
 cmd=run.pl
 help_message=$(cat <<EOF
 Usage:
@@ -59,6 +60,7 @@ scp=${data}/feats.scp
 split_scps=""
 for n in $(seq ${nj}); do
     split_scps="$split_scps $logdir/feats.${n}.scp"
+    cp $(dirname ${model})/stats.h5 $(dirname ${model})/stats.${n}.h5
 done
 
 utils/split_scp.pl ${scp} ${split_scps} || exit 1;
@@ -69,6 +71,8 @@ ${cmd} JOB=1:${nj} ${logdir}/generate_with_wavenet_${name}.JOB.log \
         --fs ${fs} \
         --n_fft ${n_fft} \
         --n_shift ${n_shift} \
+        --ngpu ${ngpu} \
+        --hdf5 stats.JOB.h5 \
         scp:${logdir}/feats.JOB.scp \
         ${wavdir}
 

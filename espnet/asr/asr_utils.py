@@ -403,6 +403,10 @@ def torch_load(path, model):
     if hasattr(model, 'module'):
         model.module.load_state_dict(model_state_dict)
     else:
+        # for k in ["encoder.input_layer.conv.0.weight", "encoder.input_layer.conv.0.bias", "encoder.input_layer.conv.2.weight", "encoder.input_layer.conv.2.bias", "encoder.input_layer.out.0.weight", "encoder.input_layer.out.0.bias", "encoder.input_layer.out.1.pe", "encoder.norm.weight", "encoder.norm.bias", "decoder.output_norm.weight", "decoder.output_norm.bias"]:
+        #     logging.info(k)
+        #     if k in model_state_dict:
+        #         model_state_dict.pop(k)
         model.load_state_dict(model_state_dict)
 
     del model_state_dict
