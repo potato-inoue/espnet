@@ -4,20 +4,20 @@
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 # Dare preparation
-./run_offline.sh 4 5 "1089" 10 10 
-./run_offline.sh 4 5 "2300" 7 7 
-./run_offline.sh 4 5 "8230" 6 6 
-./run_offline.sh 4 5 "237" 15 15 
-./run_offline.sh 4 5 "4446" 18 18 
-./run_offline.sh 4 5 "5683" 10 10 
+# ./run_offline.sh 4 5 "1089" 10 10 
+# ./run_offline.sh 4 5 "2300" 7 7 
+# ./run_offline.sh 4 5 "8230" 6 6 
+# ./run_offline.sh 4 5 "237" 15 15 
+# ./run_offline.sh 4 5 "4446" 18 18 
+# ./run_offline.sh 4 5 "5683" 10 10 
 
 # 0th decode
 # ./run_offline.sh 4 5 "1089" 10 10 
-./run_offline.sh 4 5 "2300" 7 7 
-./run_offline.sh 4 5 "8230" 6 6 
+# ./run_offline.sh 4 5 "2300" 7 7 
+# ./run_offline.sh 4 5 "8230" 6 6 
 # ./run_offline.sh 4 5 "237" 15 15 
 # ./run_offline.sh 4 5 "4446" 18 18 
-./run_offline.sh 4 5 "5683" 10 10 
+# ./run_offline.sh 4 5 "5683" 10 10 
 
 # TTS train & decode
 # ./run_offline.sh 8 10 "1089" 10 10 
@@ -36,3 +36,7 @@
 # ./run_offline.sh 11 11 "237" 15 15 
 # ./run_offline.sh 11 11 "4446" 18 18 
 # ./run_offline.sh 11 11 "5683" 10 10 
+
+ASR_VC="test_clean_asr_no_0rec_22050"
+GT_TTS="test_clean_adapt_no_0rec_22050"
+./run_offline.sh 11 11 "merge" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)

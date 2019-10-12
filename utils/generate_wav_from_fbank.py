@@ -92,6 +92,10 @@ def get_parser():
     parser.add_argument('rspecifier', type=str, help='Input feature e.g. scp:feat.scp')
     parser.add_argument('outdir', type=str,
                         help='Output directory')
+    parser.add_argument('--ngpu', default=None, type=int,
+                        help='Number of GPUs. If not given, use all visible devices')
+    parser.add_argument('--hdf5', default=None, type=str,
+                        help='hdf5 file for each job')
     return parser
 
 
@@ -115,7 +119,8 @@ def main():
 
     # load statistics
     scaler = StandardScaler()
-    with h5py.File(os.path.join(model_dir, "stats.h5")) as f:
+    # with h5py.File(os.path.join(model_dir, "stats.h5")) as f:
+    with h5py.File(os.path.join(model_dir, args.hdf5)) as f:
         scaler.mean_ = f["/melspc/mean"][()]
         scaler.scale_ = f["/melspc/scale"][()]
         # TODO(kan-bayashi): include following info as default
@@ -130,7 +135,7 @@ def main():
     )
 
     # define model and laod parameters
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device("cuda") if args.ngpu > 0 else torch.device("cpu")
     model = WaveNet(
         n_quantize=train_args.n_quantize,
         n_aux=train_args.n_aux,

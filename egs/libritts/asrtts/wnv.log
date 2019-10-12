@@ -1,0 +1,198 @@
+1
+# Running on c17
+# Finished at Tue Oct 8 18:56:54 EDT 2019 with status 0
+2
+# Running on c20
+# Finished at Wed Oct 9 15:53:01 EDT 2019 with status 0
+3
+# Running on a14
+2019-10-10 20:53:06,131 (wavenet:337) INFO: 51300/261376 estimated time = 1132206.938 sec (5.390 sec / sample)
+4
+# Running on a09
+# Finished at Tue Oct 8 20:34:11 EDT 2019 with status 0
+5
+# Running on a14
+2019-10-10 20:53:21,700 (wavenet:337) INFO: 32100/213248 estimated time = 2048453.549 sec (11.308 sec / sample)
+6
+# Running on a13
+2019-10-10 20:52:40,975 (wavenet:337) INFO: 86300/192768 estimated time = 300593.727 sec (2.823 sec / sample)
+7
+# Running on b19
+# Finished at Wed Oct 9 21:55:14 EDT 2019 with status 0
+8
+# Running on a14
+# Finished at Wed Oct 9 20:59:03 EDT 2019 with status 0
+9
+# Running on a09
+2019-10-10 20:51:39,216 (wavenet:337) INFO: 83400/128256 estimated time = 135022.572 sec (3.010 sec / sample)
+10
+# Running on a13
+2019-10-10 20:54:24,803 (wavenet:337) INFO: 86500/87808 estimated time = 3730.291 sec (2.852 sec / sample)
+11
+# Running on a18
+2019-10-10 20:50:48,909 (wavenet:337) INFO: 87400/538368 estimated time = 1289708.461 sec (2.860 sec / sample)
+12
+# Running on a14
+2019-10-10 20:53:33,168 (wavenet:337) INFO: 32400/183296 estimated time = 1657108.242 sec (10.982 sec / sample)
+13
+# Running on a13
+2019-10-10 20:50:36,527 (wavenet:337) INFO: 86400/105472 estimated time = 53666.216 sec (2.814 sec / sample)
+14
+# Running on a09
+2019-10-10 20:50:04,965 (wavenet:337) INFO: 83300/160000 estimated time = 231172.483 sec (3.014 sec / sample)
+15
+# Running on a18
+2019-10-10 20:51:03,881 (wavenet:337) INFO: 87300/159744 estimated time = 205367.634 sec (2.835 sec / sample)
+16
+# Running on b19
+2019-10-10 20:54:07,738 (wavenet:337) INFO: 329000/771328 estimated time = 400762.943 sec (0.906 sec / sample)
+17
+# Running on a14
+2019-10-10 20:51:54,388 (wavenet:337) INFO: 39100/211200 estimated time = 1424730.370 sec (8.279 sec / sample)
+18
+# Running on a13
+2019-10-10 20:51:56,107 (wavenet:337) INFO: 86300/768768 estimated time = 1925048.976 sec (2.821 sec / sample)
+19
+# Running on a18
+2019-10-10 20:53:06,949 (wavenet:337) INFO: 87700/784128 estimated time = 2001773.604 sec (2.874 sec / sample)
+20
+# Running on a09
+2019-10-10 20:53:43,125 (wavenet:337) INFO: 83500/83968 estimated time = 1414.254 sec (3.022 sec / sample)
+21
+# Running on a14
+2019-10-10 20:54:37,027 (wavenet:337) INFO: 75200/308480 estimated time = 750209.286 sec (3.216 sec / sample)
+22
+# Running on a13
+2019-10-10 20:52:10,161 (wavenet:337) INFO: 86400/220160 estimated time = 383018.643 sec (2.863 sec / sample)
+23
+# Running on a18
+2019-10-10 20:54:55,211 (wavenet:337) INFO: 87600/848128 estimated time = 2149449.585 sec (2.826 sec / sample)
+24
+# Running on b19
+# Finished at Tue Oct 8 14:40:04 EDT 2019 with status 0
+25
+# Running on a14
+2019-10-10 20:47:38,147 (wavenet:337) INFO: 52900/261632 estimated time = 1113406.455 sec (5.334 sec / sample)
+26
+# Running on a09
+# Finished at Wed Oct 9 22:37:30 EDT 2019 with status 0
+27
+# Running on a13
+2019-10-10 20:50:49,108 (wavenet:337) INFO: 86200/133120 estimated time = 134116.721 sec (2.858 sec / sample)
+28
+# Running on a16
+# Finished at Wed Oct 9 00:47:40 EDT 2019 with status 0
+29
+# Running on a18
+2019-10-10 20:54:19,911 (wavenet:337) INFO: 87800/146176 estimated time = 167726.730 sec (2.873 sec / sample)
+30
+# Running on a14
+2019-10-10 20:54:47,718 (wavenet:337) INFO: 75500/77568 estimated time = 6665.090 sec (3.223 sec / sample)
+31
+# Running on a13
+2019-10-10 20:53:41,109 (wavenet:337) INFO: 86500/100608 estimated time = 39808.038 sec (2.822 sec / sample)
+32
+# Running on a09
+2019-10-10 20:54:11,902 (wavenet:337) INFO: 83600/84480 estimated time = 2649.757 sec (3.011 sec / sample)
+33
+# Running on a18
+2019-10-10 20:54:41,038 (wavenet:337) INFO: 87700/175872 estimated time = 253453.394 sec (2.875 sec / sample)
+34
+# Running on b19
+# Finished at Tue Oct 8 12:29:16 EDT 2019 with status 0
+35
+# Running on a16
+# Finished at Tue Oct 8 16:58:55 EDT 2019 with status 0
+36
+# Running on a14
+# Finished at Thu Oct 10 07:15:19 EDT 2019 with status 0
+37
+# Running on a13
+# Finished at Thu Oct 10 14:21:47 EDT 2019 with status 0
+38
+# Running on a11
+2019-10-10 20:54:41,311 (wavenet:337) INFO: 92500/107520 estimated time = 40952.845 sec (2.727 sec / sample)
+39
+# Running on a18
+# Finished at Wed Oct 9 12:59:33 EDT 2019 with status 0
+40
+# Running on a09
+2019-10-10 20:54:50,201 (wavenet:337) INFO: 83400/88064 estimated time = 14038.088 sec (3.010 sec / sample)
+41
+# Running on a14
+2019-10-10 20:48:20,624 (wavenet:337) INFO: 50800/80384 estimated time = 167097.210 sec (5.648 sec / sample)
+42
+# Running on a13
+2019-10-10 20:54:22,403 (wavenet:337) INFO: 86400/105216 estimated time = 53368.271 sec (2.836 sec / sample)
+43
+# Running on a11
+# Finished at Tue Oct 8 22:37:03 EDT 2019 with status 0
+44
+# Running on a16
+2019-10-10 20:54:46,717 (wavenet:337) INFO: 81800/105728 estimated time = 72603.286 sec (3.034 sec / sample)
+45
+# Running on a12
+# Finished at Tue Oct 8 20:22:16 EDT 2019 with status 0
+46
+# Running on a18
+# Finished at Wed Oct 9 05:05:32 EDT 2019 with status 0
+47
+# Running on a10
+2019-10-10 20:54:01,407 (wavenet:337) INFO: 44000/179712 estimated time = 752501.997 sec (5.545 sec / sample)
+48
+# Running on b19
+# Finished at Tue Oct 8 22:29:05 EDT 2019 with status 0
+49
+# Running on a09
+2019-10-10 20:51:45,329 (wavenet:337) INFO: 82400/121856 estimated time = 118314.036 sec (2.999 sec / sample)
+50
+# Running on b01
+2019-10-10 20:53:32,604 (wavenet:337) INFO: 181400/232704 estimated time = 60794.817 sec (1.185 sec / sample)
+51
+# Running on a10
+2019-10-10 20:53:16,110 (wavenet:337) INFO: 34000/108288 estimated time = 410072.128 sec (5.520 sec / sample)
+52
+# Running on c19
+# Finished at Thu Oct 10 08:26:58 EDT 2019 with status 0
+53
+# Running on c17
+# Finished at Thu Oct 10 20:49:47 EDT 2019 with status 0
+54
+# Running on a11
+2019-10-10 20:54:43,704 (wavenet:337) INFO: 64100/71680 estimated time = 20629.777 sec (2.722 sec / sample)
+55
+# Running on c18
+# Finished at Wed Oct 9 13:06:41 EDT 2019 with status 0
+56
+# Running on c17
+# Finished at Wed Oct 9 13:59:31 EDT 2019 with status 0
+57
+# Running on c18
+# Finished at Thu Oct 10 18:45:54 EDT 2019 with status 0
+58
+# Running on a18
+2019-10-10 20:51:20,439 (wavenet:337) INFO: 54900/220672 estimated time = 477197.260 sec (2.879 sec / sample)
+59
+# Running on a16
+2019-10-10 20:52:49,663 (wavenet:337) INFO: 46100/238592 estimated time = 585288.512 sec (3.041 sec / sample)
+60
+# Running on b04
+# Finished at Thu Oct 10 08:02:12 EDT 2019 with status 0
+61
+# Running on c18
+2019-10-10 20:54:12,519 (wavenet:337) INFO: 92100/217856 estimated time = 152899.156 sec (1.216 sec / sample)
+62
+# Running on c17
+# Finished at Thu Oct 10 00:07:12 EDT 2019 with status 0
+63
+# Running on c20
+# Finished at Thu Oct 10 17:52:16 EDT 2019 with status 0
+64
+# Running on c15
+2019-10-10 20:54:59,981 (wavenet:337) INFO: 78900/221440 estimated time = 169066.388 sec (1.186 sec / sample)
+65
+# Running on c11
+# Finished at Thu Oct 10 02:06:06 EDT 2019 with status 0
+66
+# Running on b08
+# Finished at Thu Oct 10 10:21:33 EDT 2019 with status 0

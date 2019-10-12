@@ -550,8 +550,7 @@ class Transformer(TTSInterface, torch.nn.Module):
             after_outs, before_outs, logits, ys, labels, olens)
         if self.loss_type == "L1":
             #loss = l1_loss + bce_loss
-            #loss = l1_loss
-            loss = l1_loss + 10 * bce_loss
+            loss = l1_loss
         elif self.loss_type == "L2":
             loss = l2_loss + bce_loss
         elif self.loss_type == "L1+L2":
