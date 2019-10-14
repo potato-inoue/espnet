@@ -154,7 +154,7 @@ def main():
     # Added
     # check the use of multi-gpu
     # if args.ngpu > 1:
-    #     model = torch.nn.DataParallel(model, device_ids=list(range(args.ngpu)))
+        # model = torch.nn.DataParallel(model, device_ids=list(range(args.ngpu)))
         # if args.batch_size != 0:
         #     logging.info('batch size is automatically increased (%d -> %d)' % (
         #         args.batch_size, args.batch_size * args.ngpu))

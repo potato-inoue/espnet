@@ -65,7 +65,8 @@ extract_set="test-clean dev-clean"
 # pre-trained model urls for downloads.
 asr_model="librispeech.transformer.ngpu4"
 tts_model="ljspeech.transformer.v1"
-vocoder_model="ljspeech.wavenet.softmax.ns.v1"
+# vocoder_model="ljspeech.wavenet.softmax.ns.v1"
+vocoder_model="ljspeech.wavenet.mol.v1"
 
 # Cut function
 tts_fbank=false   # First half of stage 4 
@@ -463,9 +464,10 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
     echo "Finished."
 fi
 
+# outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
 if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
     echo "stage 11: Synthesis with WaveNet"
-    nj=6
+    nj=1
     echo "11.1: check corpus"
     model_corpus=$(echo ${tts_model} | cut -d. -f 1)
     vocoder_model_corpus=$(echo ${vocoder_model} | cut -d. -f 1)
@@ -493,20 +495,23 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
     # This is hardcoded for now.
     if [ ${vocoder_model} == "ljspeech.wavenet.mol.v1" ]; then
         # Needs to use https://github.com/r9y9/wavenet_vocoder
-        # # that supports mixture of logistics/gaussians
-        # MDN_WAVENET_VOC_DIR=./local/r9y9_wavenet_vocoder
-        # if [ ! -d ${MDN_WAVENET_VOC_DIR} ]; then
-        #     git clone https://github.com/r9y9/wavenet_vocoder ${MDN_WAVENET_VOC_DIR}
-        #     cd ${MDN_WAVENET_VOC_DIR} && pip install . && cd -
-        # fi
-        # checkpoint=$(find ${download_dir}/${vocoder_models} -name "*.pth" | head -n 1)
-        # feats2npy.py ${outdir}/feats.scp ${outdir}_npy
-        # python ${MDN_WAVENET_VOC_DIR}/evaluate.py ${outdir}_npy $checkpoint $dst_dir \
-        #     --hparams "batch_size=1" \
-        #     --verbose ${verbose}
-        # rm -rf ${outdir}_npy
-        echo "wavenet.mol.v1"
+        # that supports mixture of logistics/gaussians
+        MDN_WAVENET_VOC_DIR=exp/wnv/r9y9_wavenet_vocoder
+        if [ ! -d ${MDN_WAVENET_VOC_DIR} ]; then
+            git clone https://github.com/r9y9/wavenet_vocoder ${MDN_WAVENET_VOC_DIR}
+            cd ${MDN_WAVENET_VOC_DIR} && pip install . && cd -
+        fi
+        checkpoint=$(find ${voc_dir} -name "*.pth" | head -n 1)
+        for name in ${eval_set}; do #${dev_set} ${eval_set}; do
+            feats2npy.py ${outdir}/${name}/feats.scp ${outdir}_npy/${name}
+            python ${MDN_WAVENET_VOC_DIR}/evaluate.py ${outdir}_npy/${name} $checkpoint ${outdir}/${name}/wav_wnv_mol \
+                --hparams "batch_size=5" \
+                --verbose ${verbose}
+            # rm -rf ${outdir}_npy/${name}
+        done
+        # echo "wavenet.mol.v1"
     else
+        nj=1
         for name in ${eval_set}; do #${dev_set} ${eval_set}; do
             checkpoint=$(find ${voc_dir} -name "checkpoint*" | head -n 1)
             generate_wav.sh --nj ${nj} --cmd "${decode_cmd}" \
@@ -516,15 +521,15 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
                 --ngpu 2 \
                 ${checkpoint} \
                 ${outdir}_denorm/${name} \
-                ${outdir}_denorm/${name}/log_wnv \
-                ${outdir}_denorm/${name}/wav_wnv
+                ${outdir}_denorm/${name}/log_wnv_nsf \
+                ${outdir}_denorm/${name}/wav_wnv_nsf
         done
     fi
     echo "Finished"
 fi
 
 
-outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
+# outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
 if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
     echo "stage 12: Objective Evaluation"
     nj=5

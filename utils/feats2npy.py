@@ -21,6 +21,7 @@ def get_parser():
 if __name__ == "__main__":
     args = get_parser().parse_args(sys.argv[1:])
     os.makedirs(args.out_dir, exist_ok=True)
+    print(args.scp_file)
     with ReadHelper(f"scp:{args.scp_file}") as f:
         for utt_id, arr in f:
             out_path = join(args.out_dir, f"{utt_id}-feats.npy")

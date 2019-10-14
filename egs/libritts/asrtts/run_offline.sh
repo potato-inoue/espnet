@@ -8,8 +8,8 @@
 
 # general configuration
 backend=pytorch
-stage=9
-stop_stage=11
+stage=$1
+stop_stage=$2
 ngpu=1        # number of gpu in training
 nj=1 #32 #16     # numebr of parallel jobs
 dumpdir=dump  # directory to dump full features
@@ -30,8 +30,11 @@ win_length="" # window length
 do_delta=false
 
 # tts config files
-spk="1089"
-tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1e-2.rev1.yaml"
+set_name=$6
+spk=$3
+dev_num=$4
+eval_num=$5
+tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1e0.rev1.yaml"
 # tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.rev8.yaml"
 tts_decode_config="conf/tts_decode.fine-tuning.yaml"
 asr_decode_config="conf/asr_decode.fine-tuning.yaml"
@@ -75,29 +78,13 @@ tts_model="libritts.transformer.v1"
 tts_fbank=false # First half of stage 4 
 tts_dump=true   # Last half of stage 4 
 
-# speaker selection
-set_name="test_clean"
-# spk="237"
-# train_num=250
-# dev_num=14
-# eval_num=15
-
-# spk="4446"
-# train_num=350
-# dev_num=17
-# eval_num=18
-
-spk="1089"
-train_num=167
-dev_num=10
-eval_num=10
-
 # auto setting 
 deveval_num=$(($dev_num + $eval_num))
 tts_data_set="${set_name}_${spk}"
 train_set="${tts_data_set}_train_no_dev"
-dev_set="${tts_data_set}_dev"
-eval_set="${tts_data_set}_eval"
+dev_set="${7}_${spk}_dev"
+# eval_set="${8}_${spk}_eval"
+eval_set="${8}_${spk}_eval_x"
 
 asr_model_dir=exp/asr/${asr_model}
 case "${asr_model}" in
@@ -395,9 +382,9 @@ fi
 expdir=exp/tts/${expname}; mkdir -p ${expdir}
 outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
 [ ! -e ${expdir}/results ] && mkdir -p ${expdir}/results
-[ ! -e ${expdir}/results/model.0th.copy ] && cp ${synth_model} ${expdir}/results/model.0th.copy
-[ ! -e ${tts_decode_config} ] && cat ${tts_pre_decode_config} > ${tts_decode_config}
-[ ! -e ${expdir}/results/model.json ] && cp ${tts_model_conf} ${expdir}/results/model.json
+# [ ! -e ${expdir}/results/model.0th.copy ] && cp ${synth_model} ${expdir}/results/model.0th.copy
+# [ ! -e ${tts_decode_config} ] && cat ${tts_pre_decode_config} > ${tts_decode_config}
+# [ ! -e ${expdir}/results/model.json ] && cp ${tts_model_conf} ${expdir}/results/model.json
 pre_trained_tts_model=${expdir}/results/model.0th.copy
 if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     echo "stage 7:(TTS) 0th Decoding"
@@ -568,4 +555,73 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
     i=0; for pid in "${pids[@]}"; do wait ${pid} || ((i++)); done
     [ ${i} -gt 0 ] && echo "$0: ${i} background jobs are failed." && false
     echo "Finished."
+fi
+
+tts_model="libritts.transformer.v1"
+outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
+if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
+    echo "stage 11: Synthesis with WaveNet"
+    nj=1
+    vocoder_model="libritts.wavenet.mol.v1"
+
+    echo "11.1: check corpus"
+    model_corpus=$(echo ${tts_model} | cut -d. -f 1)
+    vocoder_model_corpus=$(echo ${vocoder_model} | cut -d. -f 1)
+    if [ ${model_corpus} != ${vocoder_model_corpus} ]; then
+        echo "${vocoder_model} does not support ${tts_model} (Due to the sampling rate mismatch)."
+        exit 1
+    fi
+
+    echo "11.2: check model"
+    case "${vocoder_model}" in
+        "ljspeech.wavenet.softmax.ns.v1") share_url="https://drive.google.com/open?id=1eA1VcRS9jzFa-DovyTgJLQ_jmwOLIi8L";;
+        "ljspeech.wavenet.mol.v1") share_url="https://drive.google.com/open?id=1sY7gEUg39QaO1szuN62-Llst9TrFno2t";;
+        "jsut.wavenet.mol.v1") share_url="https://drive.google.com/open?id=187xvyNbmJVZ0EZ1XHCdyjZHTXK9EcfkK";;
+        "libritts.wavenet.mol.v1") share_url="https://drive.google.com/open?id=1jHUUmQFjWiQGyDd7ZeiCThSjjpbF_B4h";;
+        *) echo "No such models: ${vocoder_model}"; exit 1 ;;
+    esac
+
+    echo "11.3: download model"
+    voc_dir=exp/wnv/${vocoder_model}
+    mkdir -p ${voc_dir}
+    if [ ! -e ${voc_dir}/.complete ]; then
+        download_from_google_drive.sh ${share_url} ${voc_dir} ".tar.gz"
+        touch ${voc_dir}/.complete
+    fi
+
+    echo "11.4: generate by wnv"
+    # This is hardcoded for now.
+    if [ ${vocoder_model} == "libritts.wavenet.mol.v1" ]; then
+        # Needs to use https://github.com/r9y9/wavenet_vocoder
+        # that supports mixture of logistics/gaussians
+        MDN_WAVENET_VOC_DIR=exp/wnv/r9y9_wavenet_vocoder
+        if [ ! -d ${MDN_WAVENET_VOC_DIR} ]; then
+            git clone https://github.com/r9y9/wavenet_vocoder ${MDN_WAVENET_VOC_DIR}
+            cd ${MDN_WAVENET_VOC_DIR} && pip install . && cd -
+        fi
+        checkpoint=$(find ${voc_dir} -name "*.pth" | head -n 1)
+        for name in ${eval_set}; do #${dev_set} ${eval_set}; do
+            feats2npy.py ${outdir}/${name}/feats.scp ${outdir}_npy/${name}
+            python ${MDN_WAVENET_VOC_DIR}/evaluate.py ${outdir}_npy/${name} $checkpoint ${outdir}/${name}/wav_wnv_mol \
+                --hparams "batch_size=1" \
+                --verbose ${verbose}
+            # rm -rf ${outdir}_npy/${name}
+        done
+        # echo "wavenet.mol.v1"
+    else
+        nj=1
+        for name in ${eval_set}; do #${dev_set} ${eval_set}; do
+            checkpoint=$(find ${voc_dir} -name "checkpoint*" | head -n 1)
+            generate_wav.sh --nj ${nj} --cmd "${decode_cmd}" \
+                --fs ${fs} \
+                --n_fft ${n_fft} \
+                --n_shift ${n_shift} \
+                --ngpu 2 \
+                ${checkpoint} \
+                ${outdir}_denorm/${name} \
+                ${outdir}_denorm/${name}/log_wnv_nsf \
+                ${outdir}_denorm/${name}/wav_wnv_nsf
+        done
+    fi
+    echo "Finished"
 fi
