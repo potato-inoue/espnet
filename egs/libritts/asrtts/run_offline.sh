@@ -625,3 +625,28 @@ if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
     fi
     echo "Finished"
 fi
+
+outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
+if [ ${stage} -le 13 ] && [ ${stop_stage} -ge 13 ]; then
+    echo "stage 13:(TTS) Objective eval"
+    nj=6
+    pids=() # initialize pids
+    for name in ${eval_set}; do #${dev_set} ${eval_set}; do
+    (
+        objective_eval.sh --nj ${nj} --cmd "${train_cmd}" \
+            --fs ${fs} \
+            --n_fft ${n_fft} \
+            --n_shift ${n_shift} \
+            --win_length "${win_length}" \
+            --n_mels ${n_mels} \
+            data/tts/${name} \
+            ${outdir}_denorm/${name} \
+            ${outdir}_denorm/${name}/log_mse \
+            ${outdir}_denorm/${name}/mse
+    ) &
+    pids+=($!) # store background pids
+    done
+    i=0; for pid in "${pids[@]}"; do wait ${pid} || ((i++)); done
+    [ ${i} -gt 0 ] && echo "$0: ${i} background jobs are failed." && false
+    echo "Finished."
+fi

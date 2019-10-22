@@ -75,7 +75,7 @@ tts_dump=true   # Last half of stage 4
 # objective evaluation related
 asr_eval_model="librispeech.transformer.ngpu4"
 eval_tts_model=1                               # 1:evaluate tts model, 0:evaluate ground truth
-voc="GL"                                       # the selection of vocoder
+voc=WNV_mol #"GL"                                       # the selection of vocoder
 api="v2"                                       # v1: w/ att_ws generation, v2: w/o att_ws generation
 
 # speaker selection
@@ -91,6 +91,7 @@ deveval_num=$(($dev_num + $eval_num))
 train_set="${tts_data_set}_train_no_dev"
 dev_set="${tts_dev_set}_dev"
 eval_set="${tts_eval_set}_eval"
+# train_set="${tts_data_set}_train_no_dev_10min"
 
 asr_model_dir=exp/asr/${asr_model}
 case "${asr_model}" in
@@ -529,7 +530,7 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
 fi
 
 
-# outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
+outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
 if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
     echo "stage 12: Objective Evaluation"
     nj=5
@@ -589,36 +590,36 @@ if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
 
     # Data preparation for ASR
     echo "12.1 Data preparation for ASR"
-    # for name in ${eval_set}; do #${dev_set} 
-    #     local/data_prep_for_asr.sh ${outdir}_denorm/${name}/wav${dir_tail} ${asr_data_dir}/${name}
-    #     cp data/tts/${name}/text ${asr_data_dir}/${name}/text
-    #     utils/validate_data_dir.sh --no-feats ${asr_data_dir}/${name}
-    # done
+    for name in ${eval_set}; do #${dev_set} 
+        local/data_prep_for_asr.sh ${outdir}_denorm/${name}/wav${dir_tail} ${asr_data_dir}/${name}
+        cp data/tts/${name}/text ${asr_data_dir}/${name}/text
+        utils/validate_data_dir.sh --no-feats ${asr_data_dir}/${name}
+    done
     
     # Feature extraction for ASR
     echo "12.2 Feature extraction for ASR"
-    # for name in ${eval_set}; do #${dev_set} 
-    #     steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj ${nj} \
-    #       --write_utt2num_frames true \
-    #       --write_utt2dur false \
-    #       ${asr_data_dir}/${name} \
-    #       ${outdir}_denorm.ob_eval/${asr_model}_asr.make_fbank${dir_tail}/${name} \
-    #       ${asr_fbank_dir}/${name}
-    #     utils/fix_data_dir.sh ${asr_data_dir}/${name}
+    for name in ${eval_set}; do #${dev_set} 
+        steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj ${nj} \
+          --write_utt2num_frames true \
+          --write_utt2dur false \
+          ${asr_data_dir}/${name} \
+          ${outdir}_denorm.ob_eval/${asr_model}_asr.make_fbank${dir_tail}/${name} \
+          ${asr_fbank_dir}/${name}
+        utils/fix_data_dir.sh ${asr_data_dir}/${name}
 
-    #     dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
-    #       ${asr_data_dir}/${name}/feats.scp ${asr_cmvn} ${outdir}_denorm.ob_eval/${asr_model}_asr.dump_feats${dir_tail}/${name} \
-    #       ${asr_feat_dir}/${name}
-    # done
+        dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
+          ${asr_data_dir}/${name}/feats.scp ${asr_cmvn} ${outdir}_denorm.ob_eval/${asr_model}_asr.dump_feats${dir_tail}/${name} \
+          ${asr_feat_dir}/${name}
+    done
 
     # Dictionary and Json Data Preparation
     echo "12.3 Dictionary and Json Data Preparation for ASR"
     asr_dict="data/tts/decode_dict/X.txt"; mkdir -p ${asr_dict%/*}
     echo "<unk> 1" > ${asr_dict}
-    # for name in ${eval_set}; do #${dev_set} 
-    #     data2json.sh --feat ${asr_feat_dir}/${name}/feats.scp \
-    #       ${asr_data_dir}/${name} ${asr_dict} > ${asr_feat_dir}/${name}/data.json
-    # done
+    for name in ${eval_set}; do #${dev_set} 
+        data2json.sh --feat ${asr_feat_dir}/${name}/feats.scp \
+          ${asr_data_dir}/${name} ${asr_dict} > ${asr_feat_dir}/${name}/data.json
+    done
 
     # ASR decoding
     echo "12.4 ASR decoding"
@@ -626,23 +627,49 @@ if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
     cat < ${asr_pre_decode_config} | sed -e 's/beam-size: 60/beam-size: 10/' > ${asr_decode_config}
     for name in ${eval_set}; do #${dev_set} 
 
-        # # split data
-        # splitjson.py --parts ${nj} ${asr_feat_dir}/${name}/data.json
+        # split data
+        splitjson.py --parts ${nj} ${asr_feat_dir}/${name}/data.json
     
-        # # set batchsize 0 to disable batch decoding    
-        # ${decode_cmd} JOB=1:${nj} ${asr_result_dir}.${api}/${name}/log/decode.JOB.log \
-        #     asr_recog.py \
-        #       --config ${asr_decode_config} \
-        #       --ngpu 0 \
-        #       --backend ${backend} \
-        #       --batchsize 0 \
-        #       --recog-json ${asr_feat_dir}/${name}/split${nj}utt/data.JOB.json \
-        #       --result-label ${asr_result_dir}.${api}/${name}/data.JOB.json \
-        #       --model ${recog_model} \
-        #       --api ${api} \
-        #       --rnnlm ${lang_model}
+        # set batchsize 0 to disable batch decoding    
+        ${decode_cmd} JOB=1:${nj} ${asr_result_dir}.${api}/${name}/log/decode.JOB.log \
+            asr_recog.py \
+              --config ${asr_decode_config} \
+              --ngpu 0 \
+              --backend ${backend} \
+              --batchsize 0 \
+              --recog-json ${asr_feat_dir}/${name}/split${nj}utt/data.JOB.json \
+              --result-label ${asr_result_dir}.${api}/${name}/data.JOB.json \
+              --model ${recog_model} \
+              --api ${api} \
+              --rnnlm ${lang_model}
 
         score_sclite_wo_dict.sh --wer true ${asr_result_dir}.${api}/${name}
 
     done
+fi
+
+
+outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
+if [ ${stage} -le 13 ] && [ ${stop_stage} -ge 13 ]; then
+    echo "stage 13:(TTS) Objective eval"
+    nj=6
+    pids=() # initialize pids
+    for name in ${eval_set}; do #${dev_set} ${eval_set}; do
+    (
+        objective_eval.sh --nj ${nj} --cmd "${train_cmd}" \
+            --fs ${fs} \
+            --n_fft ${n_fft} \
+            --n_shift ${n_shift} \
+            --win_length "${win_length}" \
+            --n_mels ${n_mels} \
+            data/tts/${name} \
+            ${outdir}_denorm/${name} \
+            ${outdir}_denorm/${name}/log_mse \
+            ${outdir}_denorm/${name}/mse
+    ) &
+    pids+=($!) # store background pids
+    done
+    i=0; for pid in "${pids[@]}"; do wait ${pid} || ((i++)); done
+    [ ${i} -gt 0 ] && echo "$0: ${i} background jobs are failed." && false
+    echo "Finished."
 fi
