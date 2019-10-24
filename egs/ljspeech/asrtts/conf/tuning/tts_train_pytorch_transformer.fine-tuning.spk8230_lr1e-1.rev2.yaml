@@ -66,4 +66,4 @@ epochs: 100  # 1,000 epochs * 330 batches / 2 accum-grad = 165,000 iters
 
 # other
 report-interval-iters: 2
-save-interval-epoch: 1
+save-interval-epoch: 10

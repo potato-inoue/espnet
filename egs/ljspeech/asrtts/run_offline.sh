@@ -36,7 +36,7 @@ do_delta=false
 #                                                # see more info in the header of each config.
 # decode_config=conf/decode.yaml
 spk=${3}
-tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1e-1.rev1.yaml"
+tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1e-1.rev2.yaml"
 tts_decode_config="conf/tts_decode.fine-tuning.yaml"
 asr_decode_config="conf/asr_decode.fine-tuning.yaml"
 
@@ -75,7 +75,7 @@ tts_dump=true   # Last half of stage 4
 # objective evaluation related
 asr_eval_model="librispeech.transformer.ngpu4"
 eval_tts_model=1                               # 1:evaluate tts model, 0:evaluate ground truth
-voc=WNV_mol #"GL"                                       # the selection of vocoder
+voc="GL"                                       # the selection of vocoder
 api="v2"                                       # v1: w/ att_ws generation, v2: w/o att_ws generation
 
 # speaker selection
@@ -372,9 +372,12 @@ if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
     nj=32
     cat ${tts_pre_train_config} | sed -e "s/epochs: 1000/epochs: 100/" \
     | sed -e "s/# other/# other\nreport-interval-iters: 2/" \
-    | sed -e "s/save-interval-epoch: 10/save-interval-epoch: 1/" \
+    | sed -e "s/save-interval-epoch: 10/save-interval-epoch: 10/" \
     | sed -e 's/transformer-lr: 1.0/transformer-lr: 0.1/' \
     | sed -e "s/batch-bins: 2277000/batch-bins: 339600/" > ${tts_train_config}
+    # | sed -e "s/batch-bins: 2277000/batch-bins: 300000/" \
+    # | sed -e "s/weight-decay: 0.0/weight-decay: 0.001/" > ${tts_train_config}
+    
 
     tr_json=${tts_feat_tr_dir}/data.json
     dt_json=${tts_feat_dt_dir}/data.json
@@ -401,14 +404,14 @@ outdir=${expdir}/outputs_${model}_$(basename ${tts_decode_config%.*})
 if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
     echo "stage 9:(TTS) Decoding"
     nj=6
-    # if [ ${n_average} -gt 0 ]; then
-    #     average_checkpoints.py --backend ${backend} \
-    #                            --snapshots ${expdir}/results/snapshot.ep.* \
-    #                            --out ${expdir}/results/${model} \
-    #                            --num ${n_average}
-    # fi
+    if [ ${n_average} -gt 0 ]; then
+        average_checkpoints.py --backend ${backend} \
+                               --snapshots ${expdir}/results/snapshot.ep.* \
+                               --out ${expdir}/results/${model} \
+                               --num ${n_average}
+    fi
     pids=() # initialize pids
-    for name in ${dev_set} ${eval_set}; do
+    for name in ${eval_set}; do #${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}/${name} ] && mkdir -p ${outdir}/${name}
         cp ${dumpdir}/tts/${name}/data.json ${outdir}/${name}
@@ -439,7 +442,7 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
     echo "stage 10:(TTS) Synthesis"
     nj=6
     pids=() # initialize pids
-    for name in ${dev_set} ${eval_set}; do
+    for name in ${eval_set}; do #${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}_denorm/${name} ] && mkdir -p ${outdir}_denorm/${name}
         apply-cmvn --norm-vars=true --reverse=true ${tts_cmvn} \
@@ -530,7 +533,7 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
 fi
 
 
-outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
+# outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
 if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
     echo "stage 12: Objective Evaluation"
     nj=5
@@ -561,11 +564,11 @@ if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
         echo "Evaluate: $(basename ${train_config%.*})"
     else
         echo "Evaluate: ground truth"
-        expdir=exp/ground_truth
+        expdir=exp/tts/ground_truth
         outdir=${expdir}/sym_link
         for name in ${dev_set} ${eval_set}; do
             mkdir -p ${outdir}_denorm/${name}/wav
-            cat < data/${name}/wav.scp | awk '{print $1}' | while read -r filename; do
+            cat < data/tts/${name}/wav.scp | awk '{print $1}' | while read -r filename; do
                 if [ -L ${outdir}_denorm/${name}/wav/${filename}.wav ]; then
                     unlink ${outdir}_denorm/${name}/wav/${filename}.wav
                 fi
