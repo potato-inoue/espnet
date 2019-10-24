@@ -3,56 +3,221 @@
 # Copyright 2019 Okayama University (Katsuki Inoue)
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
-# Data prep for 1st half
-# ./run_offline.sh 4 4 "1089" 10 10 "test_clean_asr_no_0rec_22050"
+ASR_VC="test_clean_asr_no_0rec_22050"
+GT_TTS="test_clean_adapt_no_0rec_22050"
 
+# ----------------stage -2 ~ 4 ----------------
+# ./run_offline.sh -2 -2 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(o)
+# ./run_offline.sh  0  0 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(o)
+# ./run_offline.sh  4  4 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(o)
+
+
+# ----------------stage 4 ~ 5 ----------------
 # Data preparation for last half (ASR-text)
-# ./run_offline.sh 4 5 "1089" 10 10 "test_clean_asr_no_0rec_22050"
-# ./run_offline.sh 4 5 "2300" 7 7 "test_clean_asr_no_0rec_22050"
-# ./run_offline.sh 4 5 "8230" 6 6 "test_clean_asr_no_0rec_22050"
-# ./run_offline.sh 4 5 "237" 15 15 "test_clean_asr_no_0rec_22050"
-# ./run_offline.sh 4 5 "4446" 18 18 "test_clean_asr_no_0rec_22050"
-# ./run_offline.sh 4 5 "5683" 10 10 "test_clean_asr_no_0rec_22050"
-
+# ./run_offline.sh 4 5 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "2300"  7  7 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "8230"  6  6 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "237"  15 15 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "4446" 18 18 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "5683" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(o)
 # Data preparation for last half (GT-text)
-# ./run_offline.sh 4 5 "1089" 10 10 "test_clean_adapt_no_0rec_22050"
-# ./run_offline.sh 4 5 "2300" 7 7 "test_clean_adapt_no_0rec_22050"
-# ./run_offline.sh 4 5 "8230" 6 6 "test_clean_adapt_no_0rec_22050"
-# ./run_offline.sh 4 5 "237" 15 15 "test_clean_adapt_no_0rec_22050"
-# ./run_offline.sh 4 5 "4446" 18 18 "test_clean_adapt_no_0rec_22050"
-# ./run_offline.sh 4 5 "5683" 10 10 "test_clean_adapt_no_0rec_22050"
-
-# 0th decode
-# ./run_offline.sh 6 7 "1089" 10 10 
-# ./run_offline.sh 6 7 "2300" 7 7 
-# ./run_offline.sh 6 7 "8230" 6 6 
-# ./run_offline.sh 6 7 "237" 15 15 
-# ./run_offline.sh 6 7 "4446" 18 18 
-# ./run_offline.sh 6 7 "5683" 10 10 
-
-# TTS train & decode
-# ./run_offline.sh 8 10 "1089" 10 10 
-# ./run_offline.sh 8 10 "2300" 7 7 
-# ./run_offline.sh 8 10 "8230" 6 6 
-# ./run_offline.sh 8 10 "237" 15 15 
-# ./run_offline.sh 8 10 "4446" 18 18 
-# ./run_offline.sh 8 10 "5683" 10 10 
-
-./run_offline.sh 8 10 "1089" 10 10 "test_clean_adapt_no_0rec_22050"
-./run_offline.sh 8 10 "2300" 7 7 "test_clean_adapt_no_0rec_22050"
-./run_offline.sh 8 10 "8230" 6 6 "test_clean_adapt_no_0rec_22050"
-./run_offline.sh 8 10 "237" 15 15 "test_clean_adapt_no_0rec_22050"
-./run_offline.sh 8 10 "4446" 18 18 "test_clean_adapt_no_0rec_22050"
-./run_offline.sh 8 10 "5683" 10 10 "test_clean_adapt_no_0rec_22050"
+# ./run_offline.sh 4 5 "1089" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "2300"  7  7 ${GT_TTS} ${GT_TTS} ${GT_TTS} #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "8230"  6  6 ${GT_TTS} ${GT_TTS} ${GT_TTS} #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "237"  15 15 ${GT_TTS} ${GT_TTS} ${GT_TTS} #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "4446" 18 18 ${GT_TTS} ${GT_TTS} ${GT_TTS} #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "5683" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} #@ gss(o),abelab(o)
+# Data preparation for last half (GT-text): 5 min
+# ./run_offline.sh 4 5 "1089" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} 38 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "2300"  7  7 ${GT_TTS} ${GT_TTS} ${GT_TTS} 25 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "8230"  6  6 ${GT_TTS} ${GT_TTS} ${GT_TTS} 33 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "237"  15 15 ${GT_TTS} ${GT_TTS} ${GT_TTS} 54 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "4446" 18 18 ${GT_TTS} ${GT_TTS} ${GT_TTS} 60 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "5683" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} 35 #@ gss(o),abelab(o)
+# Data preparation for last half (GT-text): 10 min
+# ./run_offline.sh 4 5 "1089" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} 90 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "2300"  7  7 ${GT_TTS} ${GT_TTS} ${GT_TTS} 59 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "8230"  6  6 ${GT_TTS} ${GT_TTS} ${GT_TTS} 64 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "237"  15 15 ${GT_TTS} ${GT_TTS} ${GT_TTS} 94 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "4446" 18 18 ${GT_TTS} ${GT_TTS} ${GT_TTS} 128 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "5683" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} 86 #@ gss(o),abelab(o)
 
 
-# decode
-# ./run_offline.sh 9 10 "2300" 7 7 
-# ./run_offline.sh 9 10 "8230" 6 6 
+# ----------------stage 6 ~ 7 ----------------
+# 0th decode (GT-text:TTS)
+# ./run_offline.sh 6 7 "1089" 10 10  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 6 7 "2300"  7  7  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 6 7 "8230"  6  6  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 6 7 "237"  15 15  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 6 7 "4446" 18 18  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 6 7 "5683" 10 10  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# 0th decode (ASR-text:VC)
+# ./run_offline.sh 6 7 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(o)
+# ./run_offline.sh 6 7 "2300"  7  7 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(o)
+# ./run_offline.sh 6 7 "8230"  6  6 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(o)
+# ./run_offline.sh 6 7 "237"  15 15 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(o)
+# ./run_offline.sh 6 7 "4446" 18 18 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(o)
+# ./run_offline.sh 6 7 "5683" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(o)
 
-# WNV decode
-# ./run_offline.sh 11 11 "1089" 10 10 
-# ./run_offline.sh 11 11 "8230" 6 6 
-# ./run_offline.sh 11 11 "237" 15 15 
-# ./run_offline.sh 11 11 "4446" 18 18 
-# ./run_offline.sh 11 11 "5683" 10 10 
+
+# ----------------stage 8 ~ 10 ----------------
+# ASR-train & ASR-Decode (ASR-text:VC)
+# ./run_offline.sh 9 10 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 9 10 "2300"  7  7 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 9 10 "8230"  6  6 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 9 10 "237"  15 15 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 9 10 "4446" 18 18 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 9 10 "5683" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+
+# ./run_offline.sh 8 11 "237"  15 15 ${ASR_VC} ${GT_TTS} ${GT_TTS} "" #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "237"  15 15 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(x)
+
+# GT-train & GT-Decode (GT-text:TTS)
+./run_offline.sh 8 11 "1089" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(x)
+./run_offline.sh 8 11 "2300"  7  7 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(x)
+./run_offline.sh 8 11 "8230"  6  6 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(x)
+# ./run_offline.sh 8 11 "237"  15 15 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(x)
+./run_offline.sh 8 11 "4446" 18 18 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(x)
+./run_offline.sh 8 11 "5683" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(x)
+# Data preparation for last half (GT-text): 5 min
+# ./run_offline.sh 4 5 "1089" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} 38 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "2300"  7  7 ${GT_TTS} ${GT_TTS} ${GT_TTS} 25 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "8230"  6  6 ${GT_TTS} ${GT_TTS} ${GT_TTS} 33 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "237"  15 15 ${GT_TTS} ${GT_TTS} ${GT_TTS} 54 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "4446" 18 18 ${GT_TTS} ${GT_TTS} ${GT_TTS} 60 #@ gss(o),abelab(o)
+# ./run_offline.sh 4 5 "5683" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} 35 #@ gss(o),abelab(o)
+# # Data preparation for last half (GT-text): 10 min
+# ./run_offline.sh 8 11 "1089" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} 90 #@ gss(o),abelab(o)
+# ./run_offline.sh 8 11 "2300"  7  7 ${GT_TTS} ${GT_TTS} ${GT_TTS} 59 #@ gss(o),abelab(o)
+# ./run_offline.sh 8 11 "8230"  6  6 ${GT_TTS} ${GT_TTS} ${GT_TTS} 64 #@ gss(o),abelab(o)
+# ./run_offline.sh 8 11 "237"  15 15 ${GT_TTS} ${GT_TTS} ${GT_TTS} 94 #@ gss(o),abelab(o)
+# ./run_offline.sh 8 11 "4446" 18 18 ${GT_TTS} ${GT_TTS} ${GT_TTS} 128 #@ gss(o),abelab(o)
+# ./run_offline.sh 8 11 "5683" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} 86 #@ gss(o),abelab(o)
+
+
+# ----------------stage 9 ~ 10 ----------------
+# ASR-Decode (GT-text:TTS)
+# ./run_offline.sh 9 10 "1089" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 9 10 "2300"  7  7 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 9 10 "8230"  6  6 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 9 10 "237"  15 15 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 9 10 "4446" 18 18 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 9 10 "5683" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# GT-Decode (ASR-text:VC)
+# ./run_offline.sh 9 10 "1089" 10 10 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 9 10 "2300"  7  7 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 9 10 "8230"  6  6 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 9 10 "237"  15 15 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 9 10 "4446" 18 18 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 9 10 "5683" 10 10 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+
+
+# ----------------stage 11 ----------------
+# 0th-eval (GT-text:TTS)
+# ./run_offline.sh 11 11 "1089" 10 10  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "2300"  7  7  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "8230"  6  6  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "237"  15 15  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "4446" 18 18  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "5683" 10 10  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ASR-eval (GT-text:TTS)
+# ./run_offline.sh 11 11 "1089" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "2300"  7  7 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "8230"  6  6 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "237"  15 15 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "4446" 18 18 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "5683" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# GT-eval (GT-text:TTS)
+# ./run_offline.sh 11 11 "1089" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "2300"  7  7 ${GT_TTS} ${GT_TTS} ${GT_TTS} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "8230"  6  6 ${GT_TTS} ${GT_TTS} ${GT_TTS} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "237"  15 15 ${GT_TTS} ${GT_TTS} ${GT_TTS} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "4446" 18 18 ${GT_TTS} ${GT_TTS} ${GT_TTS} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "5683" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} #@ gss(o),abelab(x)
+# Data preparation for last half (GT-text): 10 min
+# ./run_offline.sh 11 11 "1089" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} 90 #@ gss(o),abelab(o)
+# ./run_offline.sh 11 11 "2300"  7  7 ${GT_TTS} ${GT_TTS} ${GT_TTS} 59 #@ gss(o),abelab(o)
+# ./run_offline.sh 11 11 "8230"  6  6 ${GT_TTS} ${GT_TTS} ${GT_TTS} 64 #@ gss(o),abelab(o)
+# ./run_offline.sh 11 11 "237"  15 15 ${GT_TTS} ${GT_TTS} ${GT_TTS} 94 #@ gss(o),abelab(o)
+# ./run_offline.sh 11 11 "4446" 18 18 ${GT_TTS} ${GT_TTS} ${GT_TTS} 128 #@ gss(o),abelab(o)
+# ./run_offline.sh 11 11 "5683" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} 86 #@ gss(o),abelab(o)
+
+# 0th decode (ASR-text:VC)
+# ./run_offline.sh 11 11 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "2300"  7  7 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "8230"  6  6 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "237"  15 15 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "4446" 18 18 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "5683" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(o)
+# ASR-eval (ASR-text:VC)
+# ./run_offline.sh 11 11 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "2300"  7  7 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "8230"  6  6 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "237"  15 15 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "4446" 18 18 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "5683" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# GT-eval (ASR-text:VC)
+# ./run_offline.sh 11 11 "1089" 10 10 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "2300"  7  7 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "8230"  6  6 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "237"  15 15 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "4446" 18 18 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+# ./run_offline.sh 11 11 "5683" 10 10 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(o),abelab(x)
+
+
+# ----------------stage 12 ----------------
+# 0th-WNV (GT-text:TTS)
+# ./run_offline.sh 12 12 "1089" 10 10  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "2300"  7  7  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "8230"  6  6  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "237"  15 15  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "4446" 18 18  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "5683" 10 10  ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(xo)
+# ASR-WNV (GT-text:TTS)
+# ./run_offline.sh 12 12 "1089" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 12 12 "2300"  7  7 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 12 12 "8230"  6  6 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 12 12 "237"  15 15 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 12 12 "4446" 18 18 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 12 12 "5683" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# GT-WNV (GT-text:TTS) 
+# ./run_offline.sh 12 12 "merge" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(x)
+# GT-WNV (GT-text:TTS)
+#./run_offline.sh 12 12 "merge" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} "" #@ gss(o),abelab(x)
+
+# 0th-WNV (ASR-text:VC)
+# ./run_offline.sh 12 12 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "2300"  7  7 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "8230"  6  6 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "237"  15 15 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "4446" 18 18 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "5683" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(xo)
+# ASR-WNV (ASR-text:VC)
+# ./run_offline.sh 12 12 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "2300"  7  7 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "8230"  6  6 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "237"  15 15 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "4446" 18 18 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(xo)
+# ./run_offline.sh 12 12 "5683" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC} #@ gss(x),abelab(xo)
+# GT-WNV (ASR-text:VC)
+# ./run_offline.sh 12 12 "1089" 10 10 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(xo),abelab(x)
+# ./run_offline.sh 12 12 "2300"  7  7 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(xo),abelab(x)
+# ./run_offline.sh 12 12 "8230"  6  6 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(xo),abelab(x)
+# ./run_offline.sh 12 12 "237"  15 15 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(xo),abelab(x)
+# ./run_offline.sh 12 12 "4446" 18 18 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(xo),abelab(x)
+# ./run_offline.sh 12 12 "5683" 10 10 ${GT_TTS} ${ASR_VC} ${ASR_VC} #@ gss(xo),abelab(x)
+
+# Data preparation for last half (GT-text): 10 min
+# ./run_offline.sh 11 11 "1089" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(o)
+#./run_offline.sh 11 11 "2300"  7  7 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(o)
+#./run_offline.sh 11 11 "8230"  6  6 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(o)
+#./run_offline.sh 11 11 "237"  15 15 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(o)
+#./run_offline.sh 11 11 "4446" 18 18 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(o)
+#./run_offline.sh 11 11 "5683" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(o)
+
+#./run_offline.sh 13 13 "1089" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(o)
+#./run_offline.sh 13 13 "2300"  7  7 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(o)
+#./run_offline.sh 13 13 "8230"  6  6 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(o)
+#./run_offline.sh 13 13 "237"  15 15 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(o)
+#./run_offline.sh 13 13 "4446" 18 18 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(o)
+#./run_offline.sh 13 13 "5683" 10 10 ${GT_TTS} ${GT_TTS} ${GT_TTS} "_10min" #@ gss(o),abelab(o)

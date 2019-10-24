@@ -31,7 +31,7 @@ reduction-factor: 1
 
 # minibatch related
 batch-sort-key: input # shuffle or input or output
-batch-bins: 339600   # 30 * (870 * 80 + 180 * 35)
+batch-bins: 679200   # 30 * (870 * 80 + 180 * 35)
                       # batch-size * (max_out * dim_out + max_in * dim_in)
                       # resuling in 38 ~ 127 samples (avg 38 samples) in batch (330 batches per epochs) for ljspeech
 

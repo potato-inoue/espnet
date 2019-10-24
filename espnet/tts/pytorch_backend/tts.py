@@ -318,6 +318,11 @@ def train(args):
     # set torch device
     device = torch.device("cuda" if args.ngpu > 0 else "cpu")
     model = model.to(device)
+    for name, param in model.named_parameters():
+        if "encoder.embed" in name:
+            param.requires_grad = False
+        logging.info(name + ": %s" % param.requires_grad)
+
 
     # Setup an optimizer
     if args.opt == 'adam':

@@ -36,7 +36,7 @@ do_delta=false
 #                                                # see more info in the header of each config.
 # decode_config=conf/decode.yaml
 spk=${3}
-tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1e-1.rev1.yaml"
+tts_train_config="conf/tuning/tts_train_pytorch_transformer.fine-tuning.spk${spk}_lr1e-1.rev2.yaml"
 tts_decode_config="conf/tts_decode.fine-tuning.yaml"
 asr_decode_config="conf/asr_decode.fine-tuning.yaml"
 
@@ -65,24 +65,34 @@ extract_set="test-clean dev-clean"
 # pre-trained model urls for downloads.
 asr_model="librispeech.transformer.ngpu4"
 tts_model="ljspeech.transformer.v1"
-vocoder_model="ljspeech.wavenet.softmax.ns.v1"
+# vocoder_model="ljspeech.wavenet.softmax.ns.v1"
+vocoder_model="ljspeech.wavenet.mol.v1"
 
 # Cut function
 tts_fbank=false   # First half of stage 4 
 tts_dump=true   # Last half of stage 4 
 
+# objective evaluation related
+asr_eval_model="librispeech.transformer.ngpu4"
+eval_tts_model=1                               # 1:evaluate tts model, 0:evaluate ground truth
+voc="GL"                                       # the selection of vocoder
+api="v2"                                       # v1: w/ att_ws generation, v2: w/o att_ws generation
+
 # speaker selection
-set_name=${6}
+tts_data_set="${6}_${spk}"
+tts_dev_set="${7}_${spk}"
+tts_eval_set="${8}_${spk}"
 
 dev_num=${4}
 eval_num=${5}
 
 # auto setting 
 deveval_num=$(($dev_num + $eval_num))
-tts_data_set="${set_name}_${spk}"
-train_set="${tts_data_set}_train_no_dev"
-dev_set="${tts_data_set}_dev"
-eval_set="${tts_data_set}_eval"
+train_set="${tts_data_set}_train_no_dev${9}"
+# train_set="${tts_data_set}_train_no_dev_5min"
+# train_set="${tts_data_set}_train_no_dev_10min"
+dev_set="${tts_dev_set}_dev"
+eval_set="${tts_eval_set}_eval"
 
 asr_model_dir=exp/asr/${asr_model}
 case "${asr_model}" in
@@ -235,22 +245,27 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
 
     if [ ${tts_dump} == 'true' ]; then
         # make a dev set
-        utils/subset_data_dir.sh --last data/tts/${tts_data_set} ${deveval_num} data/tts/${tts_data_set}_deveval
-        utils/subset_data_dir.sh --last data/tts/${tts_data_set}_deveval ${eval_num} data/tts/${eval_set}
-        utils/subset_data_dir.sh --first data/tts/${tts_data_set}_deveval ${dev_num} data/tts/${dev_set}
-        n=$(( $(wc -l < data/tts/${tts_data_set}/wav.scp) - ${deveval_num} ))
-        utils/subset_data_dir.sh --first data/tts/${tts_data_set} ${n} data/tts/${train_set}
-
+        # utils/subset_data_dir.sh --last data/tts/${tts_data_set} ${deveval_num} data/tts/${tts_data_set}_deveval
+        # utils/subset_data_dir.sh --last data/tts/${tts_data_set}_deveval ${eval_num} data/tts/${eval_set}
+        # utils/subset_data_dir.sh --first data/tts/${tts_data_set}_deveval ${dev_num} data/tts/${dev_set}
+        # n=$(( $(wc -l < data/tts/${tts_data_set}/wav.scp) - ${deveval_num} ))
+        # utils/subset_data_dir.sh --first data/tts/${tts_data_set} ${n} data/tts/${train_set}
+        
         # dump features for training
+        # dump.sh --cmd "${train_cmd}" --nj 1 --do_delta false \
+        #     data/tts/${train_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_train \
+        #     ${tts_feat_tr_dir}
+        # dump.sh --cmd "${train_cmd}" --nj 1 --do_delta false \
+        #     data/tts/${dev_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_dev \
+        #     ${tts_feat_dt_dir}
+        # dump.sh --cmd "${train_cmd}" --nj 1 --do_delta false \
+        #     data/tts/${eval_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_eval \
+        #     ${tts_feat_ev_dir}
+        
+        utils/subset_data_dir.sh --first data/tts/${tts_data_set} ${9} data/tts/${train_set}
         dump.sh --cmd "${train_cmd}" --nj 1 --do_delta false \
-            data/tts/${train_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_train \
+            data/tts/${train_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_train_5min \
             ${tts_feat_tr_dir}
-        dump.sh --cmd "${train_cmd}" --nj 1 --do_delta false \
-            data/tts/${dev_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_dev \
-            ${tts_feat_dt_dir}
-        dump.sh --cmd "${train_cmd}" --nj 1 --do_delta false \
-            data/tts/${eval_set}/feats.scp ${tts_cmvn} exp/tts/dump_feats/${tts_data_set}_eval \
-            ${tts_feat_ev_dir}
     fi
 fi
 
@@ -360,10 +375,10 @@ expdir=exp/tts/${expname}; mkdir -p ${expdir}
 outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})
 if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
     echo "stage 8:(TTS) Model Training"
-    nj=32
+    
     cat ${tts_pre_train_config} | sed -e "s/epochs: 1000/epochs: 100/" \
     | sed -e "s/# other/# other\nreport-interval-iters: 2/" \
-    | sed -e "s/save-interval-epoch: 10/save-interval-epoch: 1/" \
+    | sed -e "s/save-interval-epoch: 10/save-interval-epoch: 10/" \
     | sed -e 's/transformer-lr: 1.0/transformer-lr: 0.1/' \
     | sed -e "s/batch-bins: 2277000/batch-bins: 339600/" > ${tts_train_config}
 
@@ -400,7 +415,7 @@ if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
                                --num ${n_average}
     fi
     pids=() # initialize pids
-    for name in ${dev_set} ${eval_set}; do
+    for name in ${eval_set}; do #${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}/${name} ] && mkdir -p ${outdir}/${name}
         cp ${dumpdir}/tts/${name}/data.json ${outdir}/${name}
@@ -431,7 +446,7 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
     echo "stage 10:(TTS) Synthesis"
     nj=6
     pids=() # initialize pids
-    for name in ${dev_set} ${eval_set}; do
+    for name in ${eval_set}; do #${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}_denorm/${name} ] && mkdir -p ${outdir}_denorm/${name}
         apply-cmvn --norm-vars=true --reverse=true ${tts_cmvn} \
@@ -457,10 +472,131 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
     echo "Finished."
 fi
 
-if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
-    echo "stage 11: Synthesis with WaveNet"
 
-    echo "11.1: check corpus"
+
+# outdir=${expdir}/outputs_${tts_model}_$(basename ${tts_decode_config%.*})_0th
+if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
+    echo "stage 11: Objective Evaluation"
+    nj=5
+
+    # ASR model selection for CER objective evaluation 
+    asr_model_dir="exp/tts/${asr_eval_model}_asr"
+    case "${asr_eval_model}" in
+        "librispeech.transformer.ngpu4") asr_url="https://drive.google.com/open?id=1BtQvAnsFvVi-dp_qsaFP7n4A_5cwnlR6" \
+          asr_cmvn="${asr_model_dir}/data/train_960/cmvn.ark" \
+          asr_pre_decode_config="${asr_model_dir}/conf/tuning/decode_pytorch_transformer_large.yaml" \
+          recog_model="${asr_model_dir}/exp/train_960_pytorch_train_pytorch_transformer.v1_aheads8_batch-bins15000000_specaug/results/model.val5.avg.best" \
+          lang_model="${asr_model_dir}/exp/irielm.ep11.last5.avg/rnnlm.model.best" ;;
+
+        *) echo "No such models: ${asr_eval_model}"; exit 1 ;;
+    esac
+
+    # ASR model download (librispeech)
+    if [ ! -e ${asr_model_dir}/.complete ]; then
+        mkdir -p ${asr_model_dir}
+        download_from_google_drive.sh ${asr_url} ${asr_model_dir} ".tar.gz"
+        touch ${asr_model_dir}/.complete
+    fi
+    echo "ASR model: ${asr_model_dir} exits."
+
+
+    # Select TTS model
+    if [ ${eval_tts_model} == 1 ]; then
+        echo "Evaluate: $(basename ${train_config%.*})"
+    else
+        echo "Evaluate: ground truth"
+        expdir=exp/ground_truth
+        outdir=${expdir}/sym_link
+        for name in ${dev_set} ${eval_set}; do
+            mkdir -p ${outdir}_denorm/${name}/wav
+            cat < data/${name}/wav.scp | awk '{print $1}' | while read -r filename; do
+                if [ -L ${outdir}_denorm/${name}/wav/${filename}.wav ]; then
+                    unlink ${outdir}_denorm/${name}/wav/${filename}.wav
+                fi
+                ln -s ${db_root}/LJSpeech-1.1/wavs/${filename}.wav ${outdir}_denorm/${name}/wav/${filename}.wav
+            done
+        done
+    fi
+
+    # Select decoder
+    if [ ${voc} == "GL" ]; then
+        dir_tail=""
+    elif [ ${voc} == "WNV_softmax" ]; then
+        dir_tail="_wnv_nsf"
+    elif [ ${voc} == "WNV_mol" ]; then
+        dir_tail="_wnv_mol"
+    fi
+
+    asr_data_dir="${outdir}_denorm.ob_eval/${asr_model}_asr.data${dir_tail}"
+    asr_fbank_dir="${outdir}_denorm.ob_eval/${asr_model}_asr.fbank${dir_tail}"
+    asr_feat_dir="${outdir}_denorm.ob_eval/${asr_model}_asr.dump${dir_tail}"
+    asr_result_dir="${outdir}_denorm.ob_eval/${asr_model}_asr.result${dir_tail}"
+
+    # Data preparation for ASR
+    echo "11.1 Data preparation for ASR"
+    for name in ${eval_set}; do #${dev_set} 
+        local/data_prep_for_asr.sh ${outdir}_denorm/${name}/wav${dir_tail} ${asr_data_dir}/${name}
+        cp data/tts/${name}/text ${asr_data_dir}/${name}/text
+        utils/validate_data_dir.sh --no-feats ${asr_data_dir}/${name}
+    done
+    
+    # Feature extraction for ASR
+    echo "11.2 Feature extraction for ASR"
+    for name in ${eval_set}; do #${dev_set} 
+        steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj ${nj} \
+          --write_utt2num_frames true \
+          --write_utt2dur false \
+          ${asr_data_dir}/${name} \
+          ${outdir}_denorm.ob_eval/${asr_model}_asr.make_fbank${dir_tail}/${name} \
+          ${asr_fbank_dir}/${name}
+        utils/fix_data_dir.sh ${asr_data_dir}/${name}
+
+        dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
+          ${asr_data_dir}/${name}/feats.scp ${asr_cmvn} ${outdir}_denorm.ob_eval/${asr_model}_asr.dump_feats${dir_tail}/${name} \
+          ${asr_feat_dir}/${name}
+    done
+
+    # Dictionary and Json Data Preparation
+    echo "11.3 Dictionary and Json Data Preparation for ASR"
+    asr_dict="data/tts/decode_dict/X.txt"; mkdir -p ${asr_dict%/*}
+    echo "<unk> 1" > ${asr_dict}
+    for name in ${eval_set}; do #${dev_set} 
+        data2json.sh --feat ${asr_feat_dir}/${name}/feats.scp \
+          ${asr_data_dir}/${name} ${asr_dict} > ${asr_feat_dir}/${name}/data.json
+    done
+
+    # ASR decoding
+    echo "11.4 ASR decoding"
+    asr_decode_config="conf/tuning/decode_asr.yaml"
+    cat < ${asr_pre_decode_config} | sed -e 's/beam-size: 60/beam-size: 10/' > ${asr_decode_config}
+    for name in ${eval_set}; do #${dev_set} 
+
+        # split data
+        splitjson.py --parts ${nj} ${asr_feat_dir}/${name}/data.json
+    
+        # set batchsize 0 to disable batch decoding    
+        ${decode_cmd} JOB=1:${nj} ${asr_result_dir}.${api}/${name}/log/decode.JOB.log \
+            asr_recog.py \
+              --config ${asr_decode_config} \
+              --ngpu 0 \
+              --backend ${backend} \
+              --batchsize 0 \
+              --recog-json ${asr_feat_dir}/${name}/split${nj}utt/data.JOB.json \
+              --result-label ${asr_result_dir}.${api}/${name}/data.JOB.json \
+              --model ${recog_model} \
+              --api ${api} \
+              --rnnlm ${lang_model}
+
+        score_sclite_wo_dict.sh --wer true ${asr_result_dir}.${api}/${name}
+
+    done
+fi
+
+
+if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
+    echo "stage 12: Synthesis with WaveNet"
+
+    echo "12.1: check corpus"
     model_corpus=$(echo ${tts_model} | cut -d. -f 1)
     vocoder_model_corpus=$(echo ${vocoder_model} | cut -d. -f 1)
     if [ ${model_corpus} != ${vocoder_model_corpus} ]; then
@@ -468,14 +604,14 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
         exit 1
     fi
     
-    echo "11.2: check model"
+    echo "12.2: check model"
     case "${vocoder_model}" in
         "ljspeech.wavenet.softmax.ns.v1") share_url="https://drive.google.com/open?id=1eA1VcRS9jzFa-DovyTgJLQ_jmwOLIi8L";;
         "ljspeech.wavenet.mol.v1") share_url="https://drive.google.com/open?id=1sY7gEUg39QaO1szuN62-Llst9TrFno2t";;
         *) echo "No such models: ${vocoder_model}"; exit 1 ;;
     esac
 
-    echo "11.3: download model"
+    echo "12.3: download model"
     voc_dir=exp/wnv/${vocoder_model}
     mkdir -p ${voc_dir}
     if [ ! -e ${voc_dir}/.complete ]; then
@@ -483,23 +619,25 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
         touch ${voc_dir}/.complete
     fi
 
-    echo "11.4: generate by wnv"
+    echo "12.4: generate by wnv"
     # This is hardcoded for now.
     if [ ${vocoder_model} == "ljspeech.wavenet.mol.v1" ]; then
         # Needs to use https://github.com/r9y9/wavenet_vocoder
-        # # that supports mixture of logistics/gaussians
-        # MDN_WAVENET_VOC_DIR=./local/r9y9_wavenet_vocoder
-        # if [ ! -d ${MDN_WAVENET_VOC_DIR} ]; then
-        #     git clone https://github.com/r9y9/wavenet_vocoder ${MDN_WAVENET_VOC_DIR}
-        #     cd ${MDN_WAVENET_VOC_DIR} && pip install . && cd -
-        # fi
-        # checkpoint=$(find ${download_dir}/${vocoder_models} -name "*.pth" | head -n 1)
-        # feats2npy.py ${outdir}/feats.scp ${outdir}_npy
-        # python ${MDN_WAVENET_VOC_DIR}/evaluate.py ${outdir}_npy $checkpoint $dst_dir \
-        #     --hparams "batch_size=1" \
-        #     --verbose ${verbose}
-        # rm -rf ${outdir}_npy
-        echo "wavenet.mol.v1"
+        # that supports mixture of logistics/gaussians
+        MDN_WAVENET_VOC_DIR=exp/wnv/r9y9_wavenet_vocoder
+        if [ ! -d ${MDN_WAVENET_VOC_DIR} ]; then
+            git clone https://github.com/r9y9/wavenet_vocoder ${MDN_WAVENET_VOC_DIR}
+            cd ${MDN_WAVENET_VOC_DIR} && pip install . && cd -
+        fi
+        checkpoint=$(find ${voc_dir} -name "*.pth" | head -n 1)
+        for name in ${eval_set}; do #${dev_set} ${eval_set}; do
+            feats2npy.py ${outdir}/${name}/feats.scp ${outdir}_npy/${name}
+            python ${MDN_WAVENET_VOC_DIR}/evaluate.py ${outdir}_npy/${name} $checkpoint ${outdir}/${name}/wav_wnv_mol \
+                --hparams "batch_size=5" \
+                --verbose ${verbose}
+            # rm -rf ${outdir}_npy
+        done
+        # echo "wavenet.mol.v1"
     else
         for name in ${eval_set}; do #${dev_set} ${eval_set}; do
             checkpoint=$(find ${voc_dir} -name "checkpoint*" | head -n 1)
@@ -509,9 +647,34 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
                 --n_shift ${n_shift} \
                 ${checkpoint} \
                 ${outdir}_denorm/${name} \
-                ${outdir}_denorm/${name}/log_wnv \
-                ${outdir}_denorm/${name}/wav_wnv
+                ${outdir}_denorm/${name}/log_wnv_nsf \
+                ${outdir}_denorm/${name}/wav_wnv_nsf
         done
     fi
     echo "Finished"
 fi
+
+if [ ${stage} -le 13 ] && [ ${stop_stage} -ge 13 ]; then
+    echo "stage 13:(TTS) Objective eval"
+    nj=6
+    pids=() # initialize pids
+    for name in ${eval_set}; do #${dev_set} ${eval_set}; do
+    (
+        objective_eval.sh --nj ${nj} --cmd "${train_cmd}" \
+            --fs ${fs} \
+            --n_fft ${n_fft} \
+            --n_shift ${n_shift} \
+            --win_length "${win_length}" \
+            --n_mels ${n_mels} \
+            data/tts/${name} \
+            ${outdir}_denorm/${name} \
+            ${outdir}_denorm/${name}/log_mse \
+            ${outdir}_denorm/${name}/mse
+    ) &
+    pids+=($!) # store background pids
+    done
+    i=0; for pid in "${pids[@]}"; do wait ${pid} || ((i++)); done
+    [ ${i} -gt 0 ] && echo "$0: ${i} background jobs are failed." && false
+    echo "Finished."
+fi
+
