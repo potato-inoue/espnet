@@ -62,7 +62,7 @@ accum-grad: 1
 grad-clip: 1.0
 weight-decay: 0.0
 patience: 0
-epochs: 100 # 100 * 5,203 / 4 = 130,075 iters
+epochs: 150 # 100 * 5,203 / 4 = 130,075 iters
 
 # other
 report-interval-iters: 1

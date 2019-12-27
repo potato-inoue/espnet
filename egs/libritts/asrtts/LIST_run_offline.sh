@@ -68,20 +68,19 @@ GT_TTS="test_clean_gt_rm_max"
 # ./run_offline.sh 7 8 "5683" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC}
 # ./run_offline.sh 7 8 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC}
 
-./run_offline.sh 8 8 "2300"  7  7 ${ASR_VC} ${GT_TTS} ${GT_TTS}
-./run_offline.sh 8 8 "8230"  6  6 ${ASR_VC} ${GT_TTS} ${GT_TTS}
-./run_offline.sh 8 8 "237"  15 15 ${ASR_VC} ${GT_TTS} ${GT_TTS}
-./run_offline.sh 8 8 "4446" 18 18 ${ASR_VC} ${GT_TTS} ${GT_TTS}
-./run_offline.sh 8 8 "5683" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS}
-./run_offline.sh 8 8 "1089" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS}
+# ./run_offline.sh 8 8 "2300"  7  7 ${ASR_VC} ${GT_TTS} ${GT_TTS}
+# ./run_offline.sh 8 8 "8230"  6  6 ${ASR_VC} ${GT_TTS} ${GT_TTS}
+# ./run_offline.sh 8 8 "237"  15 15 ${ASR_VC} ${GT_TTS} ${GT_TTS}
+# ./run_offline.sh 8 8 "4446" 18 18 ${ASR_VC} ${GT_TTS} ${GT_TTS}
+# ./run_offline.sh 8 8 "5683" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS}
+# ./run_offline.sh 8 8 "1089" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS}
 # ASR-train & ASR-Decode (ASR-text:VC)
-./run_offline.sh 8 8 "2300"  7  7 ${ASR_VC} ${ASR_VC} ${ASR_VC}
-./run_offline.sh 8 8 "8230"  6  6 ${ASR_VC} ${ASR_VC} ${ASR_VC}
-./run_offline.sh 8 8 "237"  15 15 ${ASR_VC} ${ASR_VC} ${ASR_VC}
-./run_offline.sh 8 8 "4446" 18 18 ${ASR_VC} ${ASR_VC} ${ASR_VC}
-./run_offline.sh 8 8 "5683" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC}
-./run_offline.sh 8 8 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC}
-
+# ./run_offline.sh 8 8 "2300"  7  7 ${ASR_VC} ${ASR_VC} ${ASR_VC}
+# ./run_offline.sh 8 8 "8230"  6  6 ${ASR_VC} ${ASR_VC} ${ASR_VC}
+# ./run_offline.sh 8 8 "237"  15 15 ${ASR_VC} ${ASR_VC} ${ASR_VC}
+# ./run_offline.sh 8 8 "4446" 18 18 ${ASR_VC} ${ASR_VC} ${ASR_VC}
+# ./run_offline.sh 8 8 "5683" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC}
+# ./run_offline.sh 8 8 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC}
 
 # ./run_offline.sh 9 12 "2300"  7  7 ${ASR_VC} ${ASR_VC} ${ASR_VC}
 # ./run_offline.sh 9 12 "8230"  6  6 ${ASR_VC} ${ASR_VC} ${ASR_VC}
@@ -89,3 +88,18 @@ GT_TTS="test_clean_gt_rm_max"
 # ./run_offline.sh 9 12 "4446" 18 18 ${ASR_VC} ${ASR_VC} ${ASR_VC}
 # ./run_offline.sh 9 12 "5683" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC}
 # ./run_offline.sh 9 12 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC}
+
+
+# ./run_offline.sh 13 13 "2300"  7  7 ${ASR_VC} ${GT_TTS} ${GT_TTS}
+# ./run_offline.sh 13 13 "8230"  6  6 ${ASR_VC} ${GT_TTS} ${GT_TTS}
+# ./run_offline.sh 13 13 "237"  15 15 ${ASR_VC} ${GT_TTS} ${GT_TTS}
+# ./run_offline.sh 13 13 "4446" 18 18 ${ASR_VC} ${GT_TTS} ${GT_TTS}
+# ./run_offline.sh 13 13 "5683" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS}
+# ./run_offline.sh 13 13 "1089" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS}
+
+./run_offline.sh 13 13 "2300"  7  7 ${ASR_VC} ${ASR_VC} ${ASR_VC}
+./run_offline.sh 13 13 "8230"  6  6 ${ASR_VC} ${ASR_VC} ${ASR_VC}
+./run_offline.sh 13 13 "237"  15 15 ${ASR_VC} ${ASR_VC} ${ASR_VC}
+./run_offline.sh 13 13 "4446" 18 18 ${ASR_VC} ${ASR_VC} ${ASR_VC}
+./run_offline.sh 13 13 "5683" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC}
+./run_offline.sh 13 13 "1089" 10 10 ${ASR_VC} ${ASR_VC} ${ASR_VC}

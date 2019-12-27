@@ -39,4 +39,12 @@
 
 ASR_VC="test_clean_asr_no_0rec_22050"
 GT_TTS="test_clean_adapt_no_0rec_22050"
-./run_offline.sh 11 11 "merge" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 11 11 "merge" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+
+# ./run_offline.sh 11 11 "merge" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 8 10 "1089" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 8 10 "2300" 7 7 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 8 10 "8230" 6 6 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+./run_offline.sh 8 10 "237" 15 15 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 8 10 "4446" 18 18 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
+# ./run_offline.sh 8 10 "5683" 10 10 ${ASR_VC} ${GT_TTS} ${GT_TTS} #@ gss(x),abelab(o)
