@@ -8,17 +8,17 @@
 
 # general configuration
 backend=pytorch
-stage=-1
-stop_stage=100
+stage=3 #-1
+stop_stage=3 #100
 ngpu=1       # number of gpu in training
-nj=64        # numebr of parallel jobs
+nj=10        # numebr of parallel jobs
 dumpdir=dump # directory to dump full features
 verbose=1    # verbose option (if set > 1, get more log)
 seed=1       # random seed number
 resume=""    # the snapshot path to resume (if set empty, no effect)
 
 # feature extraction related
-fs=24000      # sampling frequency
+fs=22050 #24000      # sampling frequency
 fmax=""       # maximum frequency
 fmin=""       # minimum frequency
 n_mels=80     # number of mel basis
@@ -27,7 +27,7 @@ n_shift=256   # number of shift points
 win_length="" # window length
 
 # config files
-train_config=conf/train_pytorch_tacotron2+spkemb.yaml
+train_config=conf/train_pytorch_transformer+spkemb.yaml #train_pytorch_tacotron2+spkemb.yaml
 decode_config=conf/decode.yaml
 
 # decoding related
@@ -38,7 +38,7 @@ griffin_lim_iters=64  # the number of iterations of Griffin-Lim
 # Set this to somewhere where you want to put your data, or where
 # someone else has already put it. You'll want to change this
 # if you're not on the CLSP grid.
-datadir=/export/a15/vpanayotov/data
+datadir=/abelab/DB4 #/export/a15/vpanayotov/data
 
 # base url for downloads.
 data_url=www.openslr.org/resources/60
@@ -70,15 +70,20 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     ### Task dependent. You have to make data the following preparation part by yourself.
     ### But you can utilize Kaldi recipes in most cases
     echo "stage 0: Data preparation"
-    for part in dev-clean test-clean train-clean-100 train-clean-360; do
-        # use underscore-separated names in data directories.
-        local/data_prep.sh ${datadir}/LibriTTS/${part} data/${part//-/_}
+    # for part in dev-clean test-clean train-clean-100 train-clean-360; do
+    #     # use underscore-separated names in data directories.
+    #     local/data_prep.sh ${datadir}/LibriTTS/${part} data/${part//-/_}
+    # done
+
+    for x in dev_clean test_clean train_clean_100 train_clean_360; do
+        utils/copy_data_dir.sh data/${x} data/${x}_22050
+        utils/data/resample_data_dir.sh ${fs} data/${x}_22050
     done
 fi
 
-feat_tr_dir=${dumpdir}/${train_set}; mkdir -p ${feat_tr_dir}
-feat_dt_dir=${dumpdir}/${dev_set}; mkdir -p ${feat_dt_dir}
-feat_ev_dir=${dumpdir}/${eval_set}; mkdir -p ${feat_ev_dir}
+feat_tr_dir=${dumpdir}/${train_set}_22050; mkdir -p ${feat_tr_dir}
+feat_dt_dir=${dumpdir}/${dev_set}_22050; mkdir -p ${feat_dt_dir}
+feat_ev_dir=${dumpdir}/${eval_set}_22050; mkdir -p ${feat_ev_dir}
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     ### Task dependent. You have to design training and dev name by yourself.
     ### But you can utilize Kaldi recipes in most cases
@@ -94,49 +99,49 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
             --n_shift ${n_shift} \
             --win_length "${win_length}" \
             --n_mels ${n_mels} \
-            data/${x} \
-            exp/make_fbank/${x} \
+            data/${x}_22050 \
+            exp/make_fbank/${x}_22050 \
             ${fbankdir}
     done
 
-    utils/combine_data.sh data/${train_set}_org data/train_clean_100 data/train_clean_360
-    utils/combine_data.sh data/${dev_set}_org data/dev_clean
+    utils/combine_data.sh data/${train_set}_org_22050 data/train_clean_100_22050 data/train_clean_360_22050
+    utils/combine_data.sh data/${dev_set}_org_22050 data/dev_clean_22050
 
     # remove utt having more than 3000 frames
     # remove utt having more than 400 characters
-    remove_longshortdata.sh --maxframes 3000 --maxchars 400 data/${train_set}_org data/${train_set}
-    remove_longshortdata.sh --maxframes 3000 --maxchars 400 data/${dev_set}_org data/${dev_set}
+    remove_longshortdata.sh --maxframes 3000 --maxchars 400 data/${train_set}_org_22050 data/${train_set}_22050
+    remove_longshortdata.sh --maxframes 3000 --maxchars 400 data/${dev_set}_org_22050 data/${dev_set}_22050
 
     # compute statistics for global mean-variance normalization
-    compute-cmvn-stats scp:data/${train_set}/feats.scp data/${train_set}/cmvn.ark
+    compute-cmvn-stats scp:data/${train_set}_22050/feats.scp data/${train_set}_22050/cmvn.ark
 
     # dump features for training
     dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta false \
-        data/${train_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/train ${feat_tr_dir}
+        data/${train_set}_22050/feats.scp data/${train_set}_22050/cmvn.ark exp/dump_feats/train_22050 ${feat_tr_dir}
     dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta false \
-        data/${dev_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
+        data/${dev_set}_22050/feats.scp data/${train_set}_22050/cmvn.ark exp/dump_feats/dev_22050 ${feat_dt_dir}
     dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta false \
-        data/${eval_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/eval ${feat_ev_dir}
+        data/${eval_set}_22050/feats.scp data/${train_set}_22050/cmvn.ark exp/dump_feats/eval_22050 ${feat_ev_dir}
 fi
 
-dict=data/lang_1char/${train_set}_units.txt
+dict=data/lang_1char/${train_set}_22050_units.txt
 echo "dictionary: ${dict}"
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     ### Task dependent. You have to check non-linguistic symbols used in the corpus.
     echo "stage 2: Dictionary and Json Data Preparation"
     mkdir -p data/lang_1char/
     echo "<unk> 1" > ${dict} # <unk> must be 1, 0 will be used for "blank" in CTC
-    text2token.py -s 1 -n 1 data/${train_set}/text | cut -f 2- -d" " | tr " " "\n" \
+    text2token.py -s 1 -n 1 data/${train_set}_22050/text | cut -f 2- -d" " | tr " " "\n" \
     | sort | uniq | grep -v -e '^\s*$' | awk '{print $0 " " NR+1}' >> ${dict}
     wc -l ${dict}
 
     # make json labels
     data2json.sh --feat ${feat_tr_dir}/feats.scp \
-         data/${train_set} ${dict} > ${feat_tr_dir}/data.json
+         data/${train_set}_22050 ${dict} > ${feat_tr_dir}/data.json
     data2json.sh --feat ${feat_dt_dir}/feats.scp \
-         data/${dev_set} ${dict} > ${feat_dt_dir}/data.json
+         data/${dev_set}_22050 ${dict} > ${feat_dt_dir}/data.json
     data2json.sh --feat ${feat_ev_dir}/feats.scp \
-         data/${eval_set} ${dict} > ${feat_ev_dir}/data.json
+         data/${eval_set}_22050 ${dict} > ${feat_ev_dir}/data.json
 fi
 
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
@@ -144,7 +149,7 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
     # Make MFCCs and compute the energy-based VAD for each dataset
     mfccdir=mfcc
     vaddir=mfcc
-    for name in ${train_set} ${dev_set} ${eval_set}; do
+    for name in ${train_set}_22050 ${dev_set}_22050 ${eval_set}_22050; do
         utils/copy_data_dir.sh data/${name} data/${name}_mfcc_16k
         utils/data/resample_data_dir.sh 16000 data/${name}_mfcc_16k
         steps/make_mfcc.sh \
@@ -168,21 +173,21 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
         rm -rf 0008_sitw_v2_1a.tar.gz 0008_sitw_v2_1a
     fi
     # Extract x-vector
-    for name in ${train_set} ${dev_set} ${eval_set}; do
+    for name in ${train_set}_22050 ${dev_set}_22050 ${eval_set}_22050; do
         sid/nnet3/xvector/extract_xvectors.sh --cmd "$train_cmd --mem 4G" --nj ${nj} \
             ${nnet_dir} data/${name}_mfcc_16k \
             ${nnet_dir}/xvectors_${name}
     done
     # Update json
-    for name in ${train_set} ${dev_set} ${eval_set}; do
+    for name in ${train_set}_22050 ${dev_set}_22050 ${eval_set}_22050; do
         local/update_json.sh ${dumpdir}/${name}/data.json ${nnet_dir}/xvectors_${name}/xvector.scp
     done
 fi
 
 if [ -z ${tag} ]; then
-    expname=${train_set}_${backend}_$(basename ${train_config%.*})
+    expname=${train_set}_22050_${backend}_$(basename ${train_config%.*})
 else
-    expname=${train_set}_${backend}_${tag}
+    expname=${train_set}_22050_${backend}_${tag}
 fi
 expdir=exp/${expname}
 mkdir -p ${expdir}
