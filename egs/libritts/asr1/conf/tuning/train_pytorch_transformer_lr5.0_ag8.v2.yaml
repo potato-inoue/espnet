@@ -1,0 +1,44 @@
+
+
+elayers: 12
+eunits: 2048
+
+dlayers: 6
+dunits: 2048
+
+adim: 256
+aheads: 4
+
+
+mtlalpha: 0.3
+
+
+lsm-weight: 0.1
+
+
+
+
+
+
+
+sortagrad: 0
+opt: noam
+accum-grad: 8
+grad-clip: 5
+patience: 0
+epochs: 100
+dropout-rate: 0.1
+
+
+backend: pytorch
+model-module: espnet.nets.pytorch_backend.e2e_asr_transformer:E2E
+transformer-input-layer: conv2d
+transformer-lr: 5.0
+transformer-warmup-steps: 25000
+transformer-length-normalized-loss: false
+transformer-init: pytorch
+
+# batch-bins: 5992000
+batch-size: 32
+# batch-count: bin
+transformer-attn-dropout-rate: 0.0
