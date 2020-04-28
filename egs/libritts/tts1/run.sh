@@ -8,8 +8,8 @@
 
 # general configuration
 backend=pytorch
-stage=3 #-1
-stop_stage=3 #100
+stage=5 #-1
+stop_stage=6 #100
 ngpu=1       # number of gpu in training
 nj=10        # numebr of parallel jobs
 dumpdir=dump # directory to dump full features
@@ -27,7 +27,7 @@ n_shift=256   # number of shift points
 win_length="" # window length
 
 # config files
-train_config=conf/train_pytorch_transformer+spkemb.yaml #train_pytorch_tacotron2+spkemb.yaml
+train_config=conf/train_pytorch_transformer+spkemb_rev2.yaml #train_pytorch_tacotron2+spkemb.yaml
 decode_config=conf/decode.yaml
 
 # decoding related
@@ -54,9 +54,11 @@ set -e
 set -u
 set -o pipefail
 
-train_set=train_clean_460
-dev_set=dev_clean
-eval_set=test_clean
+# train_set=train_clean_460
+train_set=train_clean_460_alpha
+dev_set=dev_clean_22050
+# eval_set=test_clean_22050
+eval_set=alpha_22050
 
 if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
     echo "stage -1: Data Download"
@@ -82,7 +84,7 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
 fi
 
 feat_tr_dir=${dumpdir}/${train_set}_22050; mkdir -p ${feat_tr_dir}
-feat_dt_dir=${dumpdir}/${dev_set}_22050; mkdir -p ${feat_dt_dir}
+feat_dt_dir=${dumpdir}/${dev_set}; mkdir -p ${feat_dt_dir}
 feat_ev_dir=${dumpdir}/${eval_set}_22050; mkdir -p ${feat_ev_dir}
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     ### Task dependent. You have to design training and dev name by yourself.
@@ -222,10 +224,10 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
                                --num ${n_average}
     fi
     pids=() # initialize pids
-    for name in ${dev_set} ${eval_set}; do
+    for name in ${eval_set}; do #${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}/${name} ] && mkdir -p ${outdir}/${name}
-        cp ${dumpdir}/${name}/data.json ${outdir}/${name}
+        cp ${dumpdir}/${name}/data_test.json ${outdir}/${name}/data.json
         splitjson.py --parts ${nj} ${outdir}/${name}/data.json
         # decode in parallel
         ${train_cmd} JOB=1:${nj} ${outdir}/${name}/log/decode.JOB.log \
@@ -251,10 +253,11 @@ fi
 if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
     echo "stage 6: Synthesis"
     pids=() # initialize pids
-    for name in ${dev_set} ${eval_set}; do
+    for name in ${eval_set}; do #${dev_set} ${eval_set}; do
     (
         [ ! -e ${outdir}_denorm/${name} ] && mkdir -p ${outdir}_denorm/${name}
-        apply-cmvn --norm-vars=true --reverse=true data/${train_set}/cmvn.ark \
+        # apply-cmvn --norm-vars=true --reverse=true data/${train_set}_22050/cmvn.ark 
+        apply-cmvn --norm-vars=true --reverse=true data/train_clean_460_22050/cmvn.ark \
             scp:${outdir}/${name}/feats.scp \
             ark,scp:${outdir}_denorm/${name}/feats.ark,${outdir}_denorm/${name}/feats.scp
         convert_fbank.sh --nj ${nj} --cmd "${train_cmd}" \
