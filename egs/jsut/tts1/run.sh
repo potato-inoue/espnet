@@ -8,8 +8,8 @@
 
 # general configuration
 backend=pytorch
-stage=-1
-stop_stage=100
+stage=3
+stop_stage=5
 ngpu=1       # number of gpus ("0" uses cpu, otherwise use gpu)
 nj=32        # numebr of parallel jobs
 dumpdir=dump # directory to dump full features
@@ -33,7 +33,8 @@ win_length=1200 # window length
 #  phn: m i z u o m a r e e sh i a k a r a k a w a n a k U t e w a n a r a n a i n o d e s U
 # NOTE: original transcription is provided by 漢字仮名交じり文. We convert the input to
 # kana or phoneme using OpenJTalk's NLP frontend at the data prep. stage.
-trans_type="phn"
+#trans_type="phn"
+trans_type="char"
 
 # config files
 train_config=conf/train_pytorch_transformer.yaml
@@ -45,7 +46,7 @@ n_average=1 # if > 0, the model averaged with n_average ckpts will be used inste
 griffin_lim_iters=64  # the number of iterations of Griffin-Lim
 
 # root directory of db
-db_root=downloads
+db_root=/abelab/DB4  #downloads
 
 # exp tag
 tag="" # tag for managing experiments.

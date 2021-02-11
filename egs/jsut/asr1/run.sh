@@ -8,7 +8,7 @@
 
 # general configuration
 backend=pytorch
-stage=-1       # start from -1 if you need to start from data download
+stage=0 #-1       # start from -1 if you need to start from data download
 stop_stage=100
 ngpu=0         # number of gpus ("0" uses cpu, otherwise use gpu)
 debugmode=1
@@ -32,7 +32,7 @@ lmtag=
 recog_model=model.acc.best # set a model to be used for decoding: 'model.acc.best' or 'model.loss.best'
 
 # root directory of db
-db_root=./downloads
+db_root=/abelab/DB4 # ./downloads
 
 # exp tag
 tag="" # tag for managing experiments.
