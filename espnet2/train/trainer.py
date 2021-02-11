@@ -1,4 +1,5 @@
 import argparse
+from contextlib import contextmanager
 import dataclasses
 from dataclasses import is_dataclass
 from distutils.version import LooseVersion
@@ -47,6 +48,17 @@ if torch.distributed.is_available():
 else:
     ReduceOp = None
 
+if LooseVersion(torch.__version__) >= LooseVersion("1.6.0"):
+    from torch.cuda.amp import autocast
+    from torch.cuda.amp import GradScaler
+else:
+    # Nothing to do if torch<1.6.0
+    @contextmanager
+    def autocast(enabled=True):
+        yield
+
+    GradScaler = None
+
 
 @dataclasses.dataclass
 class TrainerOptions:
@@ -55,8 +67,11 @@ class TrainerOptions:
     grad_noise: bool
     accum_grad: int
     grad_clip: float
+    grad_clip_type: float
     log_interval: Optional[int]
     no_forward_run: bool
+    use_tensorboard: bool
+    use_wandb: bool
 
 
 class Trainer:
@@ -111,6 +126,7 @@ class Trainer:
         valid_iter_factory: AbsIterFactory,
         plot_attention_iter_factory: Optional[AbsIterFactory],
         reporter: Reporter,
+        scaler: Optional[GradScaler],
         output_dir: Path,
         max_epoch: int,
         seed: int,
@@ -121,27 +137,12 @@ class Trainer:
         val_scheduler_criterion: Sequence[str],
         trainer_options,
         distributed_option: DistributedOption,
+        find_unused_parameters: bool = False,
     ) -> None:
         """Perform training. This method performs the main process of training."""
         assert check_argument_types()
         # NOTE(kamo): Don't check the type more strictly as far trainer_options
         assert is_dataclass(trainer_options), type(trainer_options)
-
-        # NOTE(kamo): trainer_options doesn't always have "train_dtype"
-        use_apex = getattr(trainer_options, "train_dtype", "") in (
-            "O0",
-            "O1",
-            "O2",
-            "O3",
-        )
-        if use_apex:
-            try:
-                from apex import amp
-            except ImportError:
-                logging.error(
-                    f"You need to install apex. "
-                    f"See https://github.com/NVIDIA/apex#linux"
-                )
 
         start_epoch = reporter.get_epoch() + 1
         if start_epoch == max_epoch + 1:
@@ -150,8 +151,6 @@ class Trainer:
             )
 
         if distributed_option.distributed:
-            # Use torch DDP instead of apex DDP
-            # https://github.com/NVIDIA/apex/issues/494
             dp_model = torch.nn.parallel.DistributedDataParallel(
                 model,
                 device_ids=(
@@ -166,18 +165,22 @@ class Trainer:
                     if distributed_option.ngpu == 1
                     else None
                 ),
+                find_unused_parameters=find_unused_parameters,
             )
         elif distributed_option.ngpu > 1:
-            # apex.amp supports DataParallel now.
             dp_model = torch.nn.parallel.DataParallel(
-                model, device_ids=list(range(distributed_option.ngpu)),
+                model,
+                device_ids=list(range(distributed_option.ngpu)),
+                find_unused_parameters=find_unused_parameters,
             )
         else:
             # NOTE(kamo): DataParallel also should work with ngpu=1,
             # but for debuggability it's better to keep this block.
             dp_model = model
 
-        if not distributed_option.distributed or distributed_option.dist_rank == 0:
+        if trainer_options.use_tensorboard and (
+            not distributed_option.distributed or distributed_option.dist_rank == 0
+        ):
             summary_writer = SummaryWriter(str(output_dir / "tensorboard"))
         else:
             summary_writer = None
@@ -209,6 +212,8 @@ class Trainer:
                     schedulers=schedulers,
                     iterator=train_iter_factory.build_iter(iepoch),
                     reporter=sub_reporter,
+                    scaler=scaler,
+                    summary_writer=summary_writer,
                     options=trainer_options,
                 )
 
@@ -244,7 +249,10 @@ class Trainer:
                 # 3. Report the results
                 logging.info(reporter.log_message())
                 reporter.matplotlib_plot(output_dir / "images")
-                reporter.tensorboard_add_scalar(summary_writer)
+                if summary_writer is not None:
+                    reporter.tensorboard_add_scalar(summary_writer)
+                if trainer_options.use_wandb:
+                    reporter.wandb_log()
 
                 # 4. Save/Update the checkpoint
                 torch.save(
@@ -256,7 +264,7 @@ class Trainer:
                             s.state_dict() if s is not None else None
                             for s in schedulers
                         ],
-                        "amp": amp.state_dict() if use_apex else None,
+                        "scaler": scaler.state_dict() if scaler is not None else None,
                     },
                     output_dir / "checkpoint.pth",
                 )
@@ -265,7 +273,7 @@ class Trainer:
                 torch.save(model.state_dict(), output_dir / f"{iepoch}epoch.pth")
 
                 # Creates a sym link latest.pth -> {iepoch}epoch.pth
-                p = output_dir / f"latest.pth"
+                p = output_dir / "latest.pth"
                 if p.is_symlink() or p.exists():
                     p.unlink()
                 p.symlink_to(f"{iepoch}epoch.pth")
@@ -283,10 +291,10 @@ class Trainer:
                             p.symlink_to(f"{iepoch}epoch.pth")
                             _improved.append(f"{_phase}.{k}")
                 if len(_improved) == 0:
-                    logging.info(f"There are no improvements in this epoch")
+                    logging.info("There are no improvements in this epoch")
                 else:
                     logging.info(
-                        f"The best model has been updated: " + ", ".join(_improved)
+                        "The best model has been updated: " + ", ".join(_improved)
                     )
 
                 # 6. Remove the model files excluding n-best epoch and latest epoch
@@ -305,9 +313,7 @@ class Trainer:
                         p.unlink()
                         _removed.append(str(p))
                 if len(_removed) != 0:
-                    logging.info(
-                        f"The model files were removed: " + ", ".join(_removed)
-                    )
+                    logging.info("The model files were removed: " + ", ".join(_removed))
 
             # 7. If any updating haven't happened, stops the training
             if all_steps_are_invalid:
@@ -332,7 +338,9 @@ class Trainer:
         iterator: Iterable[Tuple[List[str], Dict[str, torch.Tensor]]],
         optimizers: Sequence[torch.optim.Optimizer],
         schedulers: Sequence[Optional[AbsScheduler]],
+        scaler: Optional[GradScaler],
         reporter: SubReporter,
+        summary_writer: Optional[SummaryWriter],
         options: TrainerOptions,
     ) -> bool:
         assert check_argument_types()
@@ -346,11 +354,12 @@ class Trainer:
         grad_noise = options.grad_noise
         accum_grad = options.accum_grad
         grad_clip = options.grad_clip
+        grad_clip_type = options.grad_clip_type
         log_interval = options.log_interval
         no_forward_run = options.no_forward_run
         ngpu = options.ngpu
+        use_wandb = options.use_wandb
         distributed = isinstance(model, torch.nn.parallel.DistributedDataParallel)
-        use_apex = options.train_dtype in ("O0", "O1", "O2", "O3")
 
         if log_interval is None:
             try:
@@ -378,44 +387,46 @@ class Trainer:
             batch = to_device(batch, "cuda" if ngpu > 0 else "cpu")
             if no_forward_run:
                 all_steps_are_invalid = False
-                reporter.register({})
                 continue
 
-            with reporter.measure_time("forward_time"):
-                loss, stats, weight = model(**batch)
-            if ngpu > 1 or distributed:
-                # Apply weighted averaging for loss and stats
-                loss = (loss * weight.type(loss.dtype)).sum()
+            with autocast(scaler is not None):
+                with reporter.measure_time("forward_time"):
+                    loss, stats, weight = model(**batch)
+                stats = {k: v for k, v in stats.items() if v is not None}
+                if ngpu > 1 or distributed:
+                    # Apply weighted averaging for loss and stats
+                    loss = (loss * weight.type(loss.dtype)).sum()
 
-                # if distributed, this method can also apply all_reduce()
-                stats, weight = recursive_average(stats, weight, distributed)
+                    # if distributed, this method can also apply all_reduce()
+                    stats, weight = recursive_average(stats, weight, distributed)
 
-                # Now weight is summation over all workers
-                loss /= weight
-            if distributed:
-                # NOTE(kamo): Multiply world_size because DistributedDataParallel
-                # automatically normalizes the gradient by world_size.
-                loss *= torch.distributed.get_world_size()
+                    # Now weight is summation over all workers
+                    loss /= weight
+                if distributed:
+                    # NOTE(kamo): Multiply world_size because DistributedDataParallel
+                    # automatically normalizes the gradient by world_size.
+                    loss *= torch.distributed.get_world_size()
+
+                loss /= accum_grad
 
             reporter.register(stats, weight)
 
-            loss /= accum_grad
             with reporter.measure_time("backward_time"):
-                if use_apex:
-                    try:
-                        from apex import amp
-                    except ImportError:
-                        logging.error(
-                            f"You need to install apex. "
-                            f"See https://github.com/NVIDIA/apex#linux"
-                        )
-
-                    with amp.scale_loss(loss, optimizers) as scaled_loss:
-                        scaled_loss.backward()
+                if scaler is not None:
+                    # Scales loss.  Calls backward() on scaled loss
+                    # to create scaled gradients.
+                    # Backward passes under autocast are not recommended.
+                    # Backward ops run in the same dtype autocast chose
+                    # for corresponding forward ops.
+                    scaler.scale(loss).backward()
                 else:
                     loss.backward()
 
             if iiter % accum_grad == 0:
+                if scaler is not None:
+                    # Unscales the gradients of optimizer's assigned params in-place
+                    scaler.unscale_(optimizer)
+
                 # gradient noise injection
                 if grad_noise:
                     add_gradient_noise(
@@ -428,17 +439,40 @@ class Trainer:
 
                 # compute the gradient norm to check if it is normal or not
                 grad_norm = torch.nn.utils.clip_grad_norm_(
-                    model.parameters(), grad_clip
+                    model.parameters(),
+                    max_norm=grad_clip,
+                    norm_type=grad_clip_type,
                 )
+                # PyTorch<=1.4, clip_grad_norm_ returns float value
+                if not isinstance(grad_norm, torch.Tensor):
+                    grad_norm = torch.tensor(grad_norm)
 
-                if not np.isfinite(grad_norm):
+                if not torch.isfinite(grad_norm):
                     logging.warning(
                         f"The grad norm is {grad_norm}. Skipping updating the model."
                     )
+
+                    # Must invoke scaler.update() if unscale_() is used in the iteration
+                    # to avoid the following error:
+                    #   RuntimeError: unscale_() has already been called
+                    #   on this optimizer since the last update().
+                    # Note that if the gradient has inf/nan values,
+                    # scaler.step skips optimizer.step().
+                    if scaler is not None:
+                        scaler.step(optimizer)
+                        scaler.update()
+
                 else:
                     all_steps_are_invalid = False
                     with reporter.measure_time("optim_step_time"):
-                        optimizer.step()
+                        if scaler is not None:
+                            # scaler.step() first unscales the gradients of
+                            # the optimizer's assigned params.
+                            scaler.step(optimizer)
+                            # Updates the scale for next iteration.
+                            scaler.update()
+                        else:
+                            optimizer.step()
                     if isinstance(scheduler, AbsBatchStepScheduler):
                         scheduler.step()
                 optimizer.zero_grad()
@@ -454,13 +488,17 @@ class Trainer:
                         },
                         train_time=time.perf_counter() - start_time,
                     ),
-                    # Suppress to increment the internal counter.
-                    not_increment_count=True,
                 )
                 start_time = time.perf_counter()
 
+            # NOTE(kamo): Call log_message() after next()
+            reporter.next()
             if iiter % log_interval == 0:
-                logging.info(reporter.log_message())
+                logging.info(reporter.log_message(-log_interval))
+                if summary_writer is not None:
+                    reporter.tensorboard_add_scalar(summary_writer, -log_interval)
+                if use_wandb:
+                    reporter.wandb_log()
 
         else:
             if distributed:
@@ -497,7 +535,6 @@ class Trainer:
 
             batch = to_device(batch, "cuda" if ngpu > 0 else "cpu")
             if no_forward_run:
-                reporter.register({})
                 continue
 
             _, stats, weight = model(**batch)
@@ -507,6 +544,7 @@ class Trainer:
                 stats, weight = recursive_average(stats, weight, distributed)
 
             reporter.register(stats, weight)
+            reporter.next()
 
         else:
             if distributed:
@@ -585,6 +623,4 @@ class Trainer:
                         summary_writer.add_figure(
                             f"{k}_{id_}", fig, reporter.get_epoch()
                         )
-
-                    # Dummy register() stimulates to increment the counter
-                    reporter.register({})
+            reporter.next()

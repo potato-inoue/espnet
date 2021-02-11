@@ -1,25 +1,27 @@
 #!/usr/bin/env python3
+# encoding: utf-8
 
 # Copyright 2017 Johns Hopkins University (Shinji Watanabe)
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 """Common functions for ASR."""
 
-import argparse
-import editdistance
 import json
 import logging
-import numpy as np
-import six
 import sys
 
+import editdistance
 from itertools import groupby
+import numpy as np
+import six
+
+from espnet.nets.beam_search_transducer import BeamSearchTransducer
 
 
 def end_detect(ended_hyps, i, M=3, D_end=np.log(1 * np.exp(-10))):
     """End detection.
 
-    desribed in Eq. (50) of S. Watanabe et al
+    described in Eq. (50) of S. Watanabe et al
     "Hybrid CTC/Attention Architecture for End-to-End Speech Recognition"
 
     :param ended_hyps:
@@ -198,11 +200,9 @@ class ErrorCalculator(object):
         for i, y_hat in enumerate(ys_hat):
             y_true = ys_pad[i]
             eos_true = np.where(y_true == -1)[0]
-            eos_true = eos_true[0] if len(eos_true) > 0 else len(y_true)
-            # To avoid wrong higher WER than the one obtained from the decoding
-            # eos from y_true is used to mark the eos in y_hat
-            # because of that y_hats has not padded outs with -1.
-            seq_hat = [self.char_list[int(idx)] for idx in y_hat[:eos_true]]
+            ymax = eos_true[0] if len(eos_true) > 0 else len(y_true)
+            # NOTE: padding index (-1) in y_true is used to pad y_hat
+            seq_hat = [self.char_list[int(idx)] for idx in y_hat[:ymax]]
             seq_true = [self.char_list[int(idx)] for idx in y_true if int(idx) != -1]
             seq_hat_text = "".join(seq_hat).replace(self.space, " ")
             seq_hat_text = seq_hat_text.replace(self.blank, "")
@@ -246,38 +246,44 @@ class ErrorCalculator(object):
         return float(sum(word_eds)) / sum(word_ref_lens)
 
 
-class ErrorCalculatorTrans(object):
+class ErrorCalculatorTransducer(object):
     """Calculate CER and WER for transducer models.
 
     Args:
-        decoder (nn.Module): decoder module
-        args (Namespace): argument Namespace containing options
+        decoder (AbsDecoder): decoder module
+        token_list (list): list of tokens
+        sym_space (str): space symbol
+        sym_blank (str): blank symbol
         report_cer (boolean): compute CER option
         report_wer (boolean): compute WER option
 
     """
 
-    def __init__(self, decoder, args, report_cer=False, report_wer=False):
+    def __init__(
+        self,
+        decoder,
+        token_list,
+        sym_space,
+        sym_blank,
+        report_cer=False,
+        report_wer=False,
+    ):
         """Construct an ErrorCalculator object for transducer model."""
-        super(ErrorCalculatorTrans, self).__init__()
+        super().__init__()
 
-        self.dec = decoder
+        self.beam_search = BeamSearchTransducer(
+            decoder=decoder,
+            beam_size=1,
+        )
 
-        recog_args = {
-            "beam_size": args.beam_size,
-            "nbest": args.nbest,
-            "space": args.sym_space,
-            "score_norm_transducer": args.score_norm_transducer,
-        }
+        self.decoder = decoder
 
-        self.recog_args = argparse.Namespace(**recog_args)
+        self.token_list = token_list
+        self.space = sym_space
+        self.blank = sym_blank
 
-        self.char_list = args.char_list
-        self.space = args.sym_space
-        self.blank = args.sym_blank
-
-        self.report_cer = args.report_cer
-        self.report_wer = args.report_wer
+        self.report_cer = report_cer
+        self.report_wer = report_wer
 
     def __call__(self, hs_pad, ys_pad):
         """Calculate sentence-level WER/CER score for transducer models.
@@ -299,14 +305,13 @@ class ErrorCalculatorTrans(object):
         batchsize = int(hs_pad.size(0))
         batch_nbest = []
 
-        for b in six.moves.range(batchsize):
-            if self.recog_args.beam_size == 1:
-                nbest_hyps = self.dec.recognize(hs_pad[b], self.recog_args)
-            else:
-                nbest_hyps = self.dec.recognize_beam(hs_pad[b], self.recog_args)
-            batch_nbest.append(nbest_hyps)
+        hs_pad = hs_pad.to(next(self.decoder.parameters()).device)
 
-        ys_hat = [nbest_hyp[0]["yseq"][1:] for nbest_hyp in batch_nbest]
+        for b in six.moves.range(batchsize):
+            nbest_hyps = self.beam_search(hs_pad[b])
+            batch_nbest.append(nbest_hyps[-1])
+
+        ys_hat = [nbest_hyp.yseq[1:] for nbest_hyp in batch_nbest]
 
         seqs_hat, seqs_true = self.convert_to_char(ys_hat, ys_pad.cpu())
 
@@ -338,8 +343,8 @@ class ErrorCalculatorTrans(object):
             eos_true = np.where(y_true == -1)[0]
             eos_true = eos_true[0] if len(eos_true) > 0 else len(y_true)
 
-            seq_hat = [self.char_list[int(idx)] for idx in y_hat[:eos_true]]
-            seq_true = [self.char_list[int(idx)] for idx in y_true if int(idx) != -1]
+            seq_hat = [self.token_list[int(idx)] for idx in y_hat[:eos_true]]
+            seq_true = [self.token_list[int(idx)] for idx in y_true if int(idx) != -1]
 
             seq_hat_text = "".join(seq_hat).replace(self.space, " ")
             seq_hat_text = seq_hat_text.replace(self.blank, "")

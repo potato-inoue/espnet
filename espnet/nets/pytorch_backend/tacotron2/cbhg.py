@@ -190,8 +190,8 @@ class CBHG(torch.nn.Module):
         convs = self.projections(convs).transpose(1, 2)  # (B, Tmax, idim)
         xs = xs.transpose(1, 2) + convs
         # + 1 for dimension adjustment layer
-        for l in range(self.highway_layers + 1):
-            xs = self.highways[l](xs)
+        for i in range(self.highway_layers + 1):
+            xs = self.highways[i](xs)
 
         # sort by length
         xs, ilens, sort_idx = self._sort_by_length(xs, ilens)
@@ -199,7 +199,9 @@ class CBHG(torch.nn.Module):
         # total_length needs for DataParallel
         # (see https://github.com/pytorch/pytorch/pull/6327)
         total_length = xs.size(1)
-        xs = pack_padded_sequence(xs, ilens, batch_first=True)
+        if not isinstance(ilens, torch.Tensor):
+            ilens = torch.tensor(ilens)
+        xs = pack_padded_sequence(xs, ilens.cpu(), batch_first=True)
         self.gru.flatten_parameters()
         xs, _ = self.gru(xs)
         xs, ilens = pad_packed_sequence(xs, batch_first=True, total_length=total_length)

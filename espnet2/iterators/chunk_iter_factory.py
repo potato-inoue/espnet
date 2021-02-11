@@ -13,6 +13,7 @@ from typeguard import check_argument_types
 
 from espnet2.iterators.abs_iter_factory import AbsIterFactory
 from espnet2.iterators.sequence_iter_factory import SequenceIterFactory
+from espnet2.samplers.abs_sampler import AbsSampler
 
 
 class ChunkIterFactory(AbsIterFactory):
@@ -38,8 +39,8 @@ class ChunkIterFactory(AbsIterFactory):
     def __init__(
         self,
         dataset,
-        batches: Sequence[Sequence[Any]],
         batch_size: int,
+        batches: Union[AbsSampler, Sequence[Sequence[Any]]],
         chunk_length: Union[int, str],
         chunk_shift_ratio: float = 0.5,
         num_cache_chunks: int = 1024,
@@ -51,7 +52,7 @@ class ChunkIterFactory(AbsIterFactory):
         pin_memory: bool = False,
     ):
         assert check_argument_types()
-        assert all(len(x) == 1 for x in batches), f"batch-size must be 1"
+        assert all(len(x) == 1 for x in batches), "batch-size must be 1"
 
         self.per_sample_iter_factory = SequenceIterFactory(
             dataset=dataset,
@@ -67,7 +68,7 @@ class ChunkIterFactory(AbsIterFactory):
         self.num_cache_chunks = max(num_cache_chunks, batch_size)
         if isinstance(chunk_length, str):
             if len(chunk_length) == 0:
-                raise ValueError(f"e.g. 5,8 or 3-5: but got empty string")
+                raise ValueError("e.g. 5,8 or 3-5: but got empty string")
 
             self.chunk_lengths = []
             for x in chunk_length.split(","):
@@ -93,7 +94,9 @@ class ChunkIterFactory(AbsIterFactory):
         self.shuffle = shuffle
 
     def build_iter(
-        self, epoch: int, shuffle: bool = None,
+        self,
+        epoch: int,
+        shuffle: bool = None,
     ) -> Iterator[Tuple[List[str], Dict[str, torch.Tensor]]]:
         per_sample_loader = self.per_sample_iter_factory.build_iter(epoch, shuffle)
 
@@ -128,7 +131,7 @@ class ChunkIterFactory(AbsIterFactory):
 
             L = len(batch[sequence_keys[0]])
             # Select chunk length
-            chunk_lengths = [l for l in self.chunk_lengths if l < L]
+            chunk_lengths = [lg for lg in self.chunk_lengths if lg < L]
             if len(chunk_lengths) == 0:
                 logging.warning(
                     f"The length of '{id_}' is {L}, but it is shorter than "
@@ -164,7 +167,10 @@ class ChunkIterFactory(AbsIterFactory):
 
             if len(cache_id_list) > self.num_cache_chunks:
                 cache_id_list, cache_chunks = yield from self._generate_mini_batches(
-                    cache_id_list, cache_chunks, shuffle, state,
+                    cache_id_list,
+                    cache_chunks,
+                    shuffle,
+                    state,
                 )
 
             cache_id_list_dict[W] = cache_id_list
@@ -176,7 +182,10 @@ class ChunkIterFactory(AbsIterFactory):
                 cache_chunks = cache_chunks_dict.setdefault(W, {})
 
                 yield from self._generate_mini_batches(
-                    cache_id_list, cache_chunks, shuffle, state,
+                    cache_id_list,
+                    cache_chunks,
+                    shuffle,
+                    state,
                 )
 
     def _generate_mini_batches(

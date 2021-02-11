@@ -4,7 +4,6 @@
 """Transformer speech recognition model (pytorch)."""
 
 from argparse import Namespace
-from distutils.util import strtobool
 import logging
 import math
 
@@ -23,8 +22,16 @@ from espnet.nets.pytorch_backend.nets_utils import make_non_pad_mask
 from espnet.nets.pytorch_backend.nets_utils import th_accuracy
 from espnet.nets.pytorch_backend.rnn.decoders import CTC_SCORING_RATIO
 from espnet.nets.pytorch_backend.transformer.add_sos_eos import add_sos_eos
-from espnet.nets.pytorch_backend.transformer.attention import MultiHeadedAttention
+from espnet.nets.pytorch_backend.transformer.argument import (
+    add_arguments_transformer_common,  # noqa: H301
+)
+from espnet.nets.pytorch_backend.transformer.attention import (
+    MultiHeadedAttention,  # noqa: H301
+    RelPositionMultiHeadedAttention,  # noqa: H301
+)
 from espnet.nets.pytorch_backend.transformer.decoder import Decoder
+from espnet.nets.pytorch_backend.transformer.dynamic_conv import DynamicConvolution
+from espnet.nets.pytorch_backend.transformer.dynamic_conv2d import DynamicConvolution2D
 from espnet.nets.pytorch_backend.transformer.encoder import Encoder
 from espnet.nets.pytorch_backend.transformer.initializer import initialize
 from espnet.nets.pytorch_backend.transformer.label_smoothing_loss import (
@@ -34,6 +41,7 @@ from espnet.nets.pytorch_backend.transformer.mask import subsequent_mask
 from espnet.nets.pytorch_backend.transformer.mask import target_mask
 from espnet.nets.pytorch_backend.transformer.plot import PlotAttentionReport
 from espnet.nets.scorers.ctc import CTCPrefixScorer
+from espnet.utils.fill_missing_args import fill_missing_args
 
 
 class E2E(ASRInterface, torch.nn.Module):
@@ -50,98 +58,18 @@ class E2E(ASRInterface, torch.nn.Module):
         """Add arguments."""
         group = parser.add_argument_group("transformer model setting")
 
-        group.add_argument(
-            "--transformer-init",
-            type=str,
-            default="pytorch",
-            choices=[
-                "pytorch",
-                "xavier_uniform",
-                "xavier_normal",
-                "kaiming_uniform",
-                "kaiming_normal",
-            ],
-            help="how to initialize transformer parameters",
-        )
-        group.add_argument(
-            "--transformer-input-layer",
-            type=str,
-            default="conv2d",
-            choices=["conv2d", "linear", "embed"],
-            help="transformer input layer type",
-        )
-        group.add_argument(
-            "--transformer-attn-dropout-rate",
-            default=None,
-            type=float,
-            help="dropout in transformer attention. use --dropout-rate if None is set",
-        )
-        group.add_argument(
-            "--transformer-lr",
-            default=10.0,
-            type=float,
-            help="Initial value of learning rate",
-        )
-        group.add_argument(
-            "--transformer-warmup-steps",
-            default=25000,
-            type=int,
-            help="optimizer warmup steps",
-        )
-        group.add_argument(
-            "--transformer-length-normalized-loss",
-            default=True,
-            type=strtobool,
-            help="normalize loss by length",
-        )
+        group = add_arguments_transformer_common(group)
 
-        group.add_argument(
-            "--dropout-rate",
-            default=0.0,
-            type=float,
-            help="Dropout rate for the encoder",
-        )
-        # Encoder
-        group.add_argument(
-            "--elayers",
-            default=4,
-            type=int,
-            help="Number of encoder layers (for shared recognition part "
-            "in multi-speaker asr mode)",
-        )
-        group.add_argument(
-            "--eunits",
-            "-u",
-            default=300,
-            type=int,
-            help="Number of encoder hidden units",
-        )
-        # Attention
-        group.add_argument(
-            "--adim",
-            default=320,
-            type=int,
-            help="Number of attention transformation dimensions",
-        )
-        group.add_argument(
-            "--aheads",
-            default=4,
-            type=int,
-            help="Number of heads for multi head attention",
-        )
-        # Decoder
-        group.add_argument(
-            "--dlayers", default=1, type=int, help="Number of decoder layers"
-        )
-        group.add_argument(
-            "--dunits", default=320, type=int, help="Number of decoder hidden units"
-        )
         return parser
 
     @property
     def attention_plot_class(self):
         """Return PlotAttentionReport."""
         return PlotAttentionReport
+
+    def get_total_subsampling_factor(self):
+        """Get total subsampling factor."""
+        return self.encoder.conv_subsampling_factor * int(numpy.prod(self.subsample))
 
     def __init__(self, idim, odim, args, ignore_id=-1):
         """Construct an E2E object.
@@ -151,12 +79,20 @@ class E2E(ASRInterface, torch.nn.Module):
         :param Namespace args: argument Namespace containing options
         """
         torch.nn.Module.__init__(self)
+
+        # fill missing arguments for compatibility
+        args = fill_missing_args(args, self.add_arguments)
+
         if args.transformer_attn_dropout_rate is None:
             args.transformer_attn_dropout_rate = args.dropout_rate
         self.encoder = Encoder(
             idim=idim,
+            selfattention_layer_type=args.transformer_encoder_selfattn_layer_type,
             attention_dim=args.adim,
             attention_heads=args.aheads,
+            conv_wshare=args.wshare,
+            conv_kernel_length=args.ldconv_encoder_kernel_length,
+            conv_usebias=args.ldconv_usebias,
             linear_units=args.eunits,
             num_blocks=args.elayers,
             input_layer=args.transformer_input_layer,
@@ -164,17 +100,32 @@ class E2E(ASRInterface, torch.nn.Module):
             positional_dropout_rate=args.dropout_rate,
             attention_dropout_rate=args.transformer_attn_dropout_rate,
         )
-        self.decoder = Decoder(
-            odim=odim,
-            attention_dim=args.adim,
-            attention_heads=args.aheads,
-            linear_units=args.dunits,
-            num_blocks=args.dlayers,
-            dropout_rate=args.dropout_rate,
-            positional_dropout_rate=args.dropout_rate,
-            self_attention_dropout_rate=args.transformer_attn_dropout_rate,
-            src_attention_dropout_rate=args.transformer_attn_dropout_rate,
-        )
+        if args.mtlalpha < 1:
+            self.decoder = Decoder(
+                odim=odim,
+                selfattention_layer_type=args.transformer_decoder_selfattn_layer_type,
+                attention_dim=args.adim,
+                attention_heads=args.aheads,
+                conv_wshare=args.wshare,
+                conv_kernel_length=args.ldconv_decoder_kernel_length,
+                conv_usebias=args.ldconv_usebias,
+                linear_units=args.dunits,
+                num_blocks=args.dlayers,
+                dropout_rate=args.dropout_rate,
+                positional_dropout_rate=args.dropout_rate,
+                self_attention_dropout_rate=args.transformer_attn_dropout_rate,
+                src_attention_dropout_rate=args.transformer_attn_dropout_rate,
+            )
+            self.criterion = LabelSmoothingLoss(
+                odim,
+                ignore_id,
+                args.lsm_weight,
+                args.transformer_length_normalized_loss,
+            )
+        else:
+            self.decoder = None
+            self.criterion = None
+        self.blank = 0
         self.sos = odim - 1
         self.eos = odim - 1
         self.odim = odim
@@ -182,16 +133,8 @@ class E2E(ASRInterface, torch.nn.Module):
         self.subsample = get_subsample(args, mode="asr", arch="transformer")
         self.reporter = Reporter()
 
-        # self.lsm_weight = a
-        self.criterion = LabelSmoothingLoss(
-            self.odim,
-            self.ignore_id,
-            args.lsm_weight,
-            args.transformer_length_normalized_loss,
-        )
-        # self.verbose = args.verbose
         self.reset_parameters(args)
-        self.adim = args.adim
+        self.adim = args.adim  # used for CTC (equal to d_model)
         self.mtlalpha = args.mtlalpha
         if args.mtlalpha > 0.0:
             self.ctc = CTC(
@@ -223,7 +166,7 @@ class E2E(ASRInterface, torch.nn.Module):
         :param torch.Tensor xs_pad: batch of padded source sequences (B, Tmax, idim)
         :param torch.Tensor ilens: batch of lengths of source sequences (B)
         :param torch.Tensor ys_pad: batch of padded target sequences (B, Lmax)
-        :return: ctc loass value
+        :return: ctc loss value
         :rtype: torch.Tensor
         :return: attention loss value
         :rtype: torch.Tensor
@@ -237,16 +180,22 @@ class E2E(ASRInterface, torch.nn.Module):
         self.hs_pad = hs_pad
 
         # 2. forward decoder
-        ys_in_pad, ys_out_pad = add_sos_eos(ys_pad, self.sos, self.eos, self.ignore_id)
-        ys_mask = target_mask(ys_in_pad, self.ignore_id)
-        pred_pad, pred_mask = self.decoder(ys_in_pad, ys_mask, hs_pad, hs_mask)
-        self.pred_pad = pred_pad
+        if self.decoder is not None:
+            ys_in_pad, ys_out_pad = add_sos_eos(
+                ys_pad, self.sos, self.eos, self.ignore_id
+            )
+            ys_mask = target_mask(ys_in_pad, self.ignore_id)
+            pred_pad, pred_mask = self.decoder(ys_in_pad, ys_mask, hs_pad, hs_mask)
+            self.pred_pad = pred_pad
 
-        # 3. compute attention loss
-        loss_att = self.criterion(pred_pad, ys_out_pad)
-        self.acc = th_accuracy(
-            pred_pad.view(-1, self.odim), ys_out_pad, ignore_label=self.ignore_id
-        )
+            # 3. compute attention loss
+            loss_att = self.criterion(pred_pad, ys_out_pad)
+            self.acc = th_accuracy(
+                pred_pad.view(-1, self.odim), ys_out_pad, ignore_label=self.ignore_id
+            )
+        else:
+            loss_att = None
+            self.acc = None
 
         # TODO(karita) show predicted text
         # TODO(karita) calculate these stats
@@ -257,18 +206,21 @@ class E2E(ASRInterface, torch.nn.Module):
             batch_size = xs_pad.size(0)
             hs_len = hs_mask.view(batch_size, -1).sum(1)
             loss_ctc = self.ctc(hs_pad.view(batch_size, -1, self.adim), hs_len, ys_pad)
-            if self.error_calculator is not None:
+            if not self.training and self.error_calculator is not None:
                 ys_hat = self.ctc.argmax(hs_pad.view(batch_size, -1, self.adim)).data
                 cer_ctc = self.error_calculator(ys_hat.cpu(), ys_pad.cpu(), is_ctc=True)
+            # for visualization
+            if not self.training:
+                self.ctc.softmax(hs_pad)
 
         # 5. compute cer/wer
-        if self.training or self.error_calculator is None:
+        if self.training or self.error_calculator is None or self.decoder is None:
             cer, wer = None, None
         else:
             ys_hat = pred_pad.argmax(dim=-1)
             cer, wer = self.error_calculator(ys_hat.cpu(), ys_pad.cpu())
 
-        # copyied from e2e_asr
+        # copied from e2e_asr
         alpha = self.mtlalpha
         if alpha == 0:
             self.loss = loss_att
@@ -319,7 +271,22 @@ class E2E(ASRInterface, torch.nn.Module):
         :rtype: list
         """
         enc_output = self.encode(x).unsqueeze(0)
-        if recog_args.ctc_weight > 0.0:
+        if self.mtlalpha == 1.0:
+            recog_args.ctc_weight = 1.0
+            logging.info("Set to pure CTC decoding mode.")
+
+        if self.mtlalpha > 0 and recog_args.ctc_weight == 1.0:
+            from itertools import groupby
+
+            lpz = self.ctc.argmax(enc_output)
+            collapsed_indices = [x[0] for x in groupby(lpz[0])]
+            hyp = [x for x in filter(lambda x: x != self.blank, collapsed_indices)]
+            nbest_hyps = [{"score": 0.0, "yseq": [self.sos] + hyp}]
+            if recog_args.beam_size > 1:
+                raise NotImplementedError("Pure CTC beam search is not implemented.")
+            # TODO(hirofumi0810): Implement beam search
+            return nbest_hyps
+        elif self.mtlalpha > 0 and recog_args.ctc_weight > 0.0:
             lpz = self.ctc.log_softmax(enc_output)
             lpz = lpz.squeeze(0)
         else:
@@ -472,7 +439,6 @@ class E2E(ASRInterface, torch.nn.Module):
                     remained_hyps.append(hyp)
 
             # end detection
-
             if end_detect(ended_hyps, i) and recog_args.maxlenratio == 0.0:
                 logging.info("end detected at %d", i)
                 break
@@ -520,15 +486,44 @@ class E2E(ASRInterface, torch.nn.Module):
         :param torch.Tensor xs_pad: batch of padded input sequences (B, Tmax, idim)
         :param torch.Tensor ilens: batch of lengths of input sequences (B)
         :param torch.Tensor ys_pad: batch of padded token id sequence tensor (B, Lmax)
-        :return: attention weights with the following shape,
-            1) multi-head case => attention weights (B, H, Lmax, Tmax),
-            2) other case => attention weights (B, Lmax, Tmax).
+        :return: attention weights (B, H, Lmax, Tmax)
         :rtype: float ndarray
         """
+        self.eval()
         with torch.no_grad():
             self.forward(xs_pad, ilens, ys_pad)
         ret = dict()
         for name, m in self.named_modules():
-            if isinstance(m, MultiHeadedAttention):
+            if (
+                isinstance(m, MultiHeadedAttention)
+                or isinstance(m, DynamicConvolution)
+                or isinstance(m, RelPositionMultiHeadedAttention)
+            ):
                 ret[name] = m.attn.cpu().numpy()
+            if isinstance(m, DynamicConvolution2D):
+                ret[name + "_time"] = m.attn_t.cpu().numpy()
+                ret[name + "_freq"] = m.attn_f.cpu().numpy()
+        self.train()
+        return ret
+
+    def calculate_all_ctc_probs(self, xs_pad, ilens, ys_pad):
+        """E2E CTC probability calculation.
+
+        :param torch.Tensor xs_pad: batch of padded input sequences (B, Tmax)
+        :param torch.Tensor ilens: batch of lengths of input sequences (B)
+        :param torch.Tensor ys_pad: batch of padded token id sequence tensor (B, Lmax)
+        :return: CTC probability (B, Tmax, vocab)
+        :rtype: float ndarray
+        """
+        ret = None
+        if self.mtlalpha == 0:
+            return ret
+
+        self.eval()
+        with torch.no_grad():
+            self.forward(xs_pad, ilens, ys_pad)
+        for name, m in self.named_modules():
+            if isinstance(m, CTC) and m.probs is not None:
+                ret = m.probs.cpu().numpy()
+        self.train()
         return ret

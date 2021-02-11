@@ -1,12 +1,8 @@
-#!/usr/bin/env python3
-# encoding: utf-8
-
 # Copyright 2019 Kyoto University (Hirofumi Inaguma)
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 """Training/decoding definition for the speech translation task."""
 
-import copy
 import json
 import logging
 import os
@@ -22,7 +18,6 @@ from espnet.asr.asr_utils import adadelta_eps_decay
 from espnet.asr.asr_utils import adam_lr_decay
 from espnet.asr.asr_utils import add_results_to_json
 from espnet.asr.asr_utils import CompareValueTrigger
-from espnet.asr.asr_utils import get_model_conf
 from espnet.asr.asr_utils import restore_snapshot
 from espnet.asr.asr_utils import snapshot_object
 from espnet.asr.asr_utils import torch_load
@@ -32,7 +27,6 @@ from espnet.asr.pytorch_backend.asr_init import load_trained_model
 from espnet.asr.pytorch_backend.asr_init import load_trained_modules
 
 from espnet.nets.pytorch_backend.e2e_asr import pad_list
-import espnet.nets.pytorch_backend.lm.default as lm_pytorch
 from espnet.nets.st_interface import STInterface
 from espnet.utils.dataset import ChainerDataLoader
 from espnet.utils.dataset import TransformDataset
@@ -65,14 +59,16 @@ class CustomConverter(ASRCustomConverter):
     Args:
         subsampling_factor (int): The subsampling factor.
         dtype (torch.dtype): Data type to convert.
-        asr_task (bool): multi-task with ASR task.
+        use_source_text (bool): use source transcription.
 
     """
 
-    def __init__(self, subsampling_factor=1, dtype=torch.float32, asr_task=False):
+    def __init__(
+        self, subsampling_factor=1, dtype=torch.float32, use_source_text=False
+    ):
         """Construct a CustomConverter object."""
         super().__init__(subsampling_factor=subsampling_factor, dtype=dtype)
-        self.asr_task = asr_task
+        self.use_source_text = use_source_text
 
     def __call__(self, batch, device=torch.device("cpu")):
         """Transform a batch and send it to a device.
@@ -85,18 +81,32 @@ class CustomConverter(ASRCustomConverter):
             tuple(torch.Tensor, torch.Tensor, torch.Tensor)
 
         """
-        _, ys = batch[0]
-        ys_asr = copy.deepcopy(ys)
-        xs_pad, ilens, ys_pad = super().__call__(batch, device)
-        if self.asr_task:
-            ys_pad_asr = pad_list(
-                [torch.from_numpy(np.array(y[1])).long() for y in ys_asr],
+        # batch should be located in list
+        assert len(batch) == 1
+        xs, ys, ys_src = batch[0]
+
+        # get batch of lengths of input sequences
+        ilens = np.array([x.shape[0] for x in xs])
+        ilens = torch.from_numpy(ilens).to(device)
+
+        xs_pad = pad_list([torch.from_numpy(x).float() for x in xs], 0).to(
+            device, dtype=self.dtype
+        )
+
+        ys_pad = pad_list(
+            [torch.from_numpy(np.array(y, dtype=np.int64)) for y in ys],
+            self.ignore_id,
+        ).to(device)
+
+        if self.use_source_text:
+            ys_pad_src = pad_list(
+                [torch.from_numpy(np.array(y, dtype=np.int64)) for y in ys_src],
                 self.ignore_id,
             ).to(device)
         else:
-            ys_pad_asr = None
+            ys_pad_src = None
 
-        return xs_pad, ilens, ys_pad, ys_pad_asr
+        return xs_pad, ilens, ys_pad, ys_pad_src
 
 
 def train(args):
@@ -128,21 +138,7 @@ def train(args):
         model_class = dynamic_import(args.model_module)
         model = model_class(idim, odim, args)
     assert isinstance(model, STInterface)
-
-    subsampling_factor = model.subsample[0]
-
-    if args.rnnlm is not None:
-        rnnlm_args = get_model_conf(args.rnnlm, args.rnnlm_conf)
-        rnnlm = lm_pytorch.ClassifierWithState(
-            lm_pytorch.RNNLM(
-                len(args.char_list),
-                rnnlm_args.layer,
-                rnnlm_args.unit,
-                getattr(rnnlm_args, "embed_unit", None),  # for backward compatibility
-            )
-        )
-        torch_load(args.rnnlm, rnnlm)
-        model.rnnlm = rnnlm
+    total_subsampling_factor = model.get_total_subsampling_factor()
 
     # write model config
     if not os.path.exists(args.outdir):
@@ -190,7 +186,10 @@ def train(args):
         from espnet.nets.pytorch_backend.transformer.optimizer import get_std_opt
 
         optimizer = get_std_opt(
-            model, args.adim, args.transformer_warmup_steps, args.transformer_lr
+            model.parameters(),
+            args.adim,
+            args.transformer_warmup_steps,
+            args.transformer_lr,
         )
     else:
         raise NotImplementedError("unknown optimizer: " + args.opt)
@@ -223,7 +222,9 @@ def train(args):
 
     # Setup a converter
     converter = CustomConverter(
-        subsampling_factor=subsampling_factor, dtype=dtype, asr_task=args.asr_weight > 0
+        subsampling_factor=model.subsample[0],
+        dtype=dtype,
+        use_source_text=args.asr_weight > 0 or args.mt_weight > 0,
     )
 
     # read json data
@@ -247,6 +248,8 @@ def train(args):
         batch_frames_in=args.batch_frames_in,
         batch_frames_out=args.batch_frames_out,
         batch_frames_inout=args.batch_frames_inout,
+        iaxis=0,
+        oaxis=0,
     )
     valid = make_batchset(
         valid_json,
@@ -260,6 +263,8 @@ def train(args):
         batch_frames_in=args.batch_frames_in,
         batch_frames_out=args.batch_frames_out,
         batch_frames_inout=args.batch_frames_inout,
+        iaxis=0,
+        oaxis=0,
     )
 
     load_tr = LoadInputsAndTargets(
@@ -278,30 +283,26 @@ def train(args):
     # actual bathsize is included in a list
     # default collate function converts numpy array to pytorch tensor
     # we used an empty collate function instead which returns list
-    train_iter = {
-        "main": ChainerDataLoader(
-            dataset=TransformDataset(train, lambda data: converter([load_tr(data)])),
-            batch_size=1,
-            num_workers=args.n_iter_processes,
-            shuffle=not use_sortagrad,
-            collate_fn=lambda x: x[0],
-        )
-    }
-    valid_iter = {
-        "main": ChainerDataLoader(
-            dataset=TransformDataset(valid, lambda data: converter([load_cv(data)])),
-            batch_size=1,
-            shuffle=False,
-            collate_fn=lambda x: x[0],
-            num_workers=args.n_iter_processes,
-        )
-    }
+    train_iter = ChainerDataLoader(
+        dataset=TransformDataset(train, lambda data: converter([load_tr(data)])),
+        batch_size=1,
+        num_workers=args.n_iter_processes,
+        shuffle=not use_sortagrad,
+        collate_fn=lambda x: x[0],
+    )
+    valid_iter = ChainerDataLoader(
+        dataset=TransformDataset(valid, lambda data: converter([load_cv(data)])),
+        batch_size=1,
+        shuffle=False,
+        collate_fn=lambda x: x[0],
+        num_workers=args.n_iter_processes,
+    )
 
     # Set up a trainer
     updater = CustomUpdater(
         model,
         args.grad_clip,
-        train_iter,
+        {"main": train_iter},
         optimizer,
         device,
         args.ngpu,
@@ -325,13 +326,15 @@ def train(args):
     # Evaluate the model with the test dataset for each epoch
     if args.save_interval_iters > 0:
         trainer.extend(
-            CustomEvaluator(model, valid_iter, reporter, device, args.ngpu),
+            CustomEvaluator(model, {"main": valid_iter}, reporter, device, args.ngpu),
             trigger=(args.save_interval_iters, "iteration"),
         )
     else:
-        trainer.extend(CustomEvaluator(model, valid_iter, reporter, device, args.ngpu))
+        trainer.extend(
+            CustomEvaluator(model, {"main": valid_iter}, reporter, device, args.ngpu)
+        )
 
-    # Save attention weight each epoch
+    # Save attention weight at each epoch
     if args.num_save_attention > 0:
         data = sorted(
             list(valid_json.items())[: args.num_save_attention],
@@ -351,10 +354,38 @@ def train(args):
             converter=converter,
             transform=load_cv,
             device=device,
+            subsampling_factor=total_subsampling_factor,
         )
         trainer.extend(att_reporter, trigger=(1, "epoch"))
     else:
         att_reporter = None
+
+    # Save CTC prob at each epoch
+    if (args.asr_weight > 0 and args.mtlalpha > 0) and args.num_save_ctc > 0:
+        # NOTE: sort it by output lengths
+        data = sorted(
+            list(valid_json.items())[: args.num_save_ctc],
+            key=lambda x: int(x[1]["output"][0]["shape"][0]),
+            reverse=True,
+        )
+        if hasattr(model, "module"):
+            ctc_vis_fn = model.module.calculate_all_ctc_probs
+            plot_class = model.module.ctc_plot_class
+        else:
+            ctc_vis_fn = model.calculate_all_ctc_probs
+            plot_class = model.ctc_plot_class
+        ctc_reporter = plot_class(
+            ctc_vis_fn,
+            data,
+            args.outdir + "/ctc_prob",
+            converter=converter,
+            transform=load_cv,
+            device=device,
+            subsampling_factor=total_subsampling_factor,
+        )
+        trainer.extend(ctc_reporter, trigger=(1, "epoch"))
+    else:
+        ctc_reporter = None
 
     # Make a plot for training and validation values
     trainer.extend(
@@ -364,6 +395,8 @@ def train(args):
                 "validation/main/loss",
                 "main/loss_asr",
                 "validation/main/loss_asr",
+                "main/loss_mt",
+                "validation/main/loss_mt",
                 "main/loss_st",
                 "validation/main/loss_st",
             ],
@@ -378,6 +411,8 @@ def train(args):
                 "validation/main/acc",
                 "main/acc_asr",
                 "validation/main/acc_asr",
+                "main/acc_mt",
+                "validation/main/acc_mt",
             ],
             "epoch",
             file_name="acc.png",
@@ -532,6 +567,7 @@ def train(args):
             if args.report_wer:
                 report_keys.append("validation/main/wer")
     if args.report_bleu:
+        report_keys.append("main/bleu")
         report_keys.append("validation/main/bleu")
     trainer.extend(
         extensions.PrintReport(report_keys),
@@ -543,7 +579,11 @@ def train(args):
 
     if args.tensorboard_dir is not None and args.tensorboard_dir != "":
         trainer.extend(
-            TensorboardLogger(SummaryWriter(args.tensorboard_dir), att_reporter),
+            TensorboardLogger(
+                SummaryWriter(args.tensorboard_dir),
+                att_reporter=att_reporter,
+                ctc_reporter=ctc_reporter,
+            ),
             trigger=(args.report_interval_iters, "iteration"),
         )
     # Run the training
@@ -561,33 +601,13 @@ def trans(args):
     set_deterministic_pytorch(args)
     model, train_args = load_trained_model(args.model)
     assert isinstance(model, STInterface)
-    # args.ctc_weight = 0.0
     model.trans_args = args
-
-    # read rnnlm
-    if args.rnnlm:
-        rnnlm_args = get_model_conf(args.rnnlm, args.rnnlm_conf)
-        if getattr(rnnlm_args, "model_module", "default") != "default":
-            raise ValueError(
-                "use '--api v2' option to decode with non-default language model"
-            )
-        rnnlm = lm_pytorch.ClassifierWithState(
-            lm_pytorch.RNNLM(
-                len(train_args.char_list), rnnlm_args.layer, rnnlm_args.unit
-            )
-        )
-        torch_load(args.rnnlm, rnnlm)
-        rnnlm.eval()
-    else:
-        rnnlm = None
 
     # gpu
     if args.ngpu == 1:
         gpu_id = list(range(args.ngpu))
         logging.info("gpu id: " + str(gpu_id))
         model.cuda()
-        if rnnlm:
-            rnnlm.cuda()
 
     # read json data
     with open(args.trans_json, "rb") as f:
@@ -610,7 +630,11 @@ def trans(args):
                 logging.info("(%d/%d) decoding " + name, idx, len(js.keys()))
                 batch = [(name, js[name])]
                 feat = load_inputs_and_targets(batch)[0][0]
-                nbest_hyps = model.translate(feat, args, train_args.char_list, rnnlm)
+                nbest_hyps = model.translate(
+                    feat,
+                    args,
+                    train_args.char_list,
+                )
                 new_js[name] = add_results_to_json(
                     js[name], nbest_hyps, train_args.char_list
                 )
@@ -634,7 +658,9 @@ def trans(args):
                 batch = [(name, js[name]) for name in names]
                 feats = load_inputs_and_targets(batch)[0]
                 nbest_hyps = model.translate_batch(
-                    feats, args, train_args.char_list, rnnlm=rnnlm
+                    feats,
+                    args,
+                    train_args.char_list,
                 )
 
                 for i, nbest_hyp in enumerate(nbest_hyps):

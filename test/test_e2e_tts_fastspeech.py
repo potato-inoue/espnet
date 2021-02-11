@@ -21,6 +21,7 @@ from espnet.nets.pytorch_backend.e2e_tts_transformer import Transformer
 from espnet.nets.pytorch_backend.fastspeech.duration_calculator import (
     DurationCalculator,  # noqa: H301
 )
+from espnet.nets.pytorch_backend.fastspeech.length_regulator import is_torch_1_1_plus
 from espnet.nets.pytorch_backend.fastspeech.length_regulator import LengthRegulator
 from espnet.nets.pytorch_backend.nets_utils import pad_list
 
@@ -28,15 +29,15 @@ from espnet.nets.pytorch_backend.nets_utils import pad_list
 def prepare_inputs(
     idim, odim, ilens, olens, spk_embed_dim=None, device=torch.device("cpu")
 ):
-    xs = [np.random.randint(0, idim, l) for l in ilens]
-    ys = [np.random.randn(l, odim) for l in olens]
+    xs = [np.random.randint(0, idim, lg) for lg in ilens]
+    ys = [np.random.randn(lg, odim) for lg in olens]
     ilens = torch.LongTensor(ilens).to(device)
     olens = torch.LongTensor(olens).to(device)
     xs = pad_list([torch.from_numpy(x).long() for x in xs], 0).to(device)
     ys = pad_list([torch.from_numpy(y).float() for y in ys], 0).to(device)
     labels = ys.new_zeros(ys.size(0), ys.size(1))
-    for i, l in enumerate(olens):
-        labels[i, l - 1 :] = 1
+    for i, lg in enumerate(olens):
+        labels[i, lg - 1 :] = 1
     batch = {
         "xs": xs,
         "ilens": ilens,
@@ -573,13 +574,44 @@ def test_length_regulator():
 
     # test with non-zero durations
     length_regulator = LengthRegulator()
-    xs_expand = length_regulator(xs, ds, ilens)
+    xs_expand = length_regulator(xs, ds)
     assert int(xs_expand.shape[1]) == int(ds.sum(dim=-1).max())
 
     # test with duration including zero
     ds[:, 2] = 0
-    xs_expand = length_regulator(xs, ds, ilens)
+    xs_expand = length_regulator(xs, ds)
     assert int(xs_expand.shape[1]) == int(ds.sum(dim=-1).max())
+
+
+@pytest.mark.skipif(not is_torch_1_1_plus, reason="torch 1.1+ is required.")
+def test_legacy_length_regulator():
+    # prepare inputs
+    idim = 5
+    ilens = [10, 5, 3]
+    xs = pad_list([torch.randn((ilen, idim)) for ilen in ilens], 0.0)
+    ds = pad_list([torch.arange(ilen) for ilen in ilens], 0)
+
+    # test with non-zero durations
+    length_regulator = LengthRegulator()
+    legacy_length_regulator = LengthRegulator()
+    legacy_length_regulator.repeat_fn = (
+        legacy_length_regulator._legacy_repeat_one_sequence
+    )
+    xs_expand_1 = length_regulator(xs, ds)
+    xs_expand_2 = legacy_length_regulator(xs, ds)
+    np.testing.assert_array_equal(
+        xs_expand_1.numpy(),
+        xs_expand_2.numpy(),
+    )
+
+    # test with duration including zero
+    ds[:, 2] = 0
+    xs_expand_1 = length_regulator(xs, ds)
+    xs_expand_2 = legacy_length_regulator(xs, ds)
+    np.testing.assert_array_equal(
+        xs_expand_1.numpy(),
+        xs_expand_2.numpy(),
+    )
 
 
 def test_duration_calculator():
@@ -602,7 +634,8 @@ def test_duration_calculator():
 
 
 @pytest.mark.parametrize(
-    "alpha", [(1.0), (0.5), (2.0)],
+    "alpha",
+    [(1.0), (0.5), (2.0)],
 )
 def test_fastspeech_inference(alpha):
     # make args
@@ -626,5 +659,7 @@ def test_fastspeech_inference(alpha):
         else:
             spemb = batch["spembs"][0]
         model.inference(
-            batch["xs"][0][: batch["ilens"][0]], inference_args, spemb=spemb,
+            batch["xs"][0][: batch["ilens"][0]],
+            inference_args,
+            spemb=spemb,
         )

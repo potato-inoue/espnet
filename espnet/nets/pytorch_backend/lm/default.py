@@ -169,8 +169,8 @@ class DefaultRNNLM(BatchScorerInterface, LMInterface, nn.Module):
             # transpose state of [batch, key, layer] into [key, layer, batch]
             states = {
                 k: [
-                    torch.stack([states[b][k][l] for b in range(n_batch)])
-                    for l in range(n_layers)
+                    torch.stack([states[b][k][i] for b in range(n_batch)])
+                    for i in range(n_layers)
                 ]
                 for k in keys
             }
@@ -180,7 +180,7 @@ class DefaultRNNLM(BatchScorerInterface, LMInterface, nn.Module):
         return (
             logp,
             [
-                {k: [states[k][l][b] for l in range(n_layers)] for k in keys}
+                {k: [states[k][i][b] for i in range(n_layers)] for k in keys}
                 for b in range(n_batch)
             ],
         )
@@ -344,14 +344,11 @@ class RNNLM(nn.Module):
     def forward(self, state, x):
         """Forward neural networks."""
         if state is None:
-            h = [
-                to_device(self, self.zero_state(x.size(0)))
-                for n in range(self.n_layers)
-            ]
+            h = [to_device(x, self.zero_state(x.size(0))) for n in range(self.n_layers)]
             state = {"h": h}
             if self.typ == "lstm":
                 c = [
-                    to_device(self, self.zero_state(x.size(0)))
+                    to_device(x, self.zero_state(x.size(0)))
                     for n in range(self.n_layers)
                 ]
                 state = {"c": c, "h": h}

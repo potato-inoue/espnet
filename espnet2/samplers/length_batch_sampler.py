@@ -5,8 +5,8 @@ from typing import Union
 
 from typeguard import check_argument_types
 
+from espnet2.fileio.read_text import load_num_sequence_text
 from espnet2.samplers.abs_sampler import AbsSampler
-from espnet2.utils.fileio import load_num_sequence_text
 
 
 class LengthBatchSampler(AbsSampler):
@@ -69,7 +69,7 @@ class LengthBatchSampler(AbsSampler):
                     for d in utt2shapes
                 ]
                 # bins = bs x max_length
-                bins = sum(bs * l for l in max_lengths)
+                bins = sum(bs * lg for lg in max_lengths)
             else:
                 # bins = sum of lengths
                 bins = sum(
@@ -98,7 +98,7 @@ class LengthBatchSampler(AbsSampler):
         # the samples are redistributed to the other mini-batches
         if len(batch_sizes) > 1 and batch_sizes[-1] < min_batch_size:
             for i in range(batch_sizes.pop(-1)):
-                batch_sizes[-(i % len(batch_sizes)) - 2] += 1
+                batch_sizes[-(i % len(batch_sizes)) - 1] += 1
 
         if not self.drop_last:
             # Bug check

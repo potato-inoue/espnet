@@ -25,7 +25,9 @@ def get_parser():
         default="utils/run.pl",
     )
     parser.add_argument(
-        "--log", help="The path of log file used by cmd", default="run.log",
+        "--log",
+        help="The path of log file used by cmd",
+        default="run.log",
     )
     parser.add_argument(
         "--max_num_log_files",
@@ -78,7 +80,7 @@ def get_parser():
     parser.add_argument(
         "--init_file_prefix",
         type=str,
-        default=f".dist_init_",
+        default=".dist_init_",
         help="The file name prefix for init_file, which is used for "
         "'Shared-file system initialization'. "
         "This option is used when --port is not specified",
@@ -131,7 +133,7 @@ def main(cmd=None):
     for i in range(args.max_num_log_files - 1, -1, -1):
         if i == 0:
             p = Path(args.log)
-            pn = p.parent / (p.stem + f".1" + p.suffix)
+            pn = p.parent / (p.stem + ".1" + p.suffix)
         else:
             _p = Path(args.log)
             p = _p.parent / (_p.stem + f".{i}" + _p.suffix)
@@ -215,7 +217,9 @@ EOF
                 #  i.e. not assigning pty,
                 #  and the program is not killed when SSH connection is closed.
                 process = subprocess.Popen(
-                    ["ssh", host, "bash", heredoc], stdout=f, stderr=f,
+                    ["ssh", host, "bash", heredoc],
+                    stdout=f,
+                    stderr=f,
                 )
 
                 processes.append(process)

@@ -6,8 +6,9 @@ set -u
 set -o pipefail
 
 ./asr.sh \
+    --lang en \
     --train_set train_nodev \
     --lm_config conf/train_lm.yaml \
-    --dev_set train_dev \
-    --eval_sets "test " \
-    --srctexts "data/train_nodev/text" "$@"
+    --valid_set train_dev \
+    --test_sets "train_dev test" \
+    --lm_train_text "data/train_nodev/text" "$@"

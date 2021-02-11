@@ -36,7 +36,14 @@ def build_attention_list(
     if num_encs == 1:
         for i in range(num_att):
             att = initial_att(
-                atype, eprojs, dunits, aheads, adim, awin, aconv_chans, aconv_filts,
+                atype,
+                eprojs,
+                dunits,
+                aheads,
+                adim,
+                awin,
+                aconv_chans,
+                aconv_filts,
             )
             att_list.append(att)
     elif num_encs > 1:  # no multi-speaker mode
@@ -146,15 +153,16 @@ class RNNDecoder(AbsDecoder):
     def rnn_forward(self, ey, z_list, c_list, z_prev, c_prev):
         if self.dtype == "lstm":
             z_list[0], c_list[0] = self.decoder[0](ey, (z_prev[0], c_prev[0]))
-            for l in range(1, self.dlayers):
-                z_list[l], c_list[l] = self.decoder[l](
-                    self.dropout_dec[l - 1](z_list[l - 1]), (z_prev[l], c_prev[l]),
+            for i in range(1, self.dlayers):
+                z_list[i], c_list[i] = self.decoder[i](
+                    self.dropout_dec[i - 1](z_list[i - 1]),
+                    (z_prev[i], c_prev[i]),
                 )
         else:
             z_list[0] = self.decoder[0](ey, z_prev[0])
-            for l in range(1, self.dlayers):
-                z_list[l] = self.decoder[l](
-                    self.dropout_dec[l - 1](z_list[l - 1]), z_prev[l]
+            for i in range(1, self.dlayers):
+                z_list[i] = self.decoder[i](
+                    self.dropout_dec[i - 1](z_list[i - 1]), z_prev[i]
                 )
         return z_list, c_list
 
@@ -237,7 +245,8 @@ class RNNDecoder(AbsDecoder):
         z_all = torch.stack(z_all, dim=1)
         z_all = self.output(z_all)
         z_all.masked_fill_(
-            make_pad_mask(ys_in_lens, z_all, 1), 0,
+            make_pad_mask(ys_in_lens, z_all, 1),
+            0,
         )
         return z_all, ys_in_lens
 
