@@ -27,7 +27,7 @@ text=${data_dir}/text
 [ -e ${utt2spk} ] && rm ${utt2spk}
 
 # make scp, utt2spk, and spk2utt
-find ${db} -follow -name "*.wav" | sort | while read -r filename;do
+find ${db}/wavs -follow -name "*.wav" | sort | while read -r filename;do
     id=$(basename ${filename} | sed -e "s/\.[^\.]*$//g")
     echo "${id} ${filename}" >> ${scp}
     echo "${id} LJ" >> ${utt2spk}
